@@ -1,4 +1,4 @@
-// sezing.js - Final (dengan form stok board yang pasti muncul)
+// sezing.js - Final (tanpa riwayat stok board & tanpa stok tersedia per PO)
 
 let penjualanEditId = null;
 if (!window.boardStockList) window.boardStockList = [];
@@ -41,33 +41,16 @@ function renderBoardStockSummary() {
     container.innerHTML = html;
 }
 
+// Fungsi riwayat stok board dikosongkan
 function renderBoardStockHistory() {
     const container = document.getElementById("board-stock-history");
-    if (!container) return;
-    if (!window.boardStockList.length) {
-        container.innerHTML = '<div class="empty">📭 Belum ada riwayat input stok</div>';
-        return;
-    }
-    const sorted = [...window.boardStockList].sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
-    let html = `
-        <div class="section-head">📜 Riwayat Input Stok Board per PO</div>
-        <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>PO</th><th>Stok (m³)</th><th>Catatan</th><th>Aksi</th></tr></thead><tbody>
-    `;
-    sorted.forEach(item => {
-        const order = window.orderList.find(o => o.id === item.orderId);
-        const poName = order ? `${escapeHtml(order.kodePO)} - ${escapeHtml(order.perusahaan)}` : item.orderId;
-        html += `
-            <tr>
-                <td>${fmtDate(item.tanggal)}</td>
-                <td class="highlight">${poName}</td>
-                <td class="right">${fmtDec(item.stok, 2)}</td>
-                <td>${escapeHtml(item.catatan || '-')}</td>
-                <td><button class="btn btn-del btn-sm" onclick="window.deleteBoardStock('${item.id}')">🗑️</button></td>
-            </tr>
-        `;
-    });
-    html += `</tbody></table></div>`;
-    container.innerHTML = html;
+    if (container) container.innerHTML = '';
+}
+
+// Fungsi stok tersedia per PO dikosongkan
+function renderRealtimeStock() {
+    const container = document.getElementById("realtime-stock-container");
+    if (container) container.innerHTML = ''; // tidak menampilkan apa pun
 }
 
 window.saveBoardStock = function() {
@@ -109,7 +92,6 @@ window.deleteBoardStock = function(id) {
 function initBoardStockForm() {
     const container = document.getElementById("board-stock-form-container");
     if (!container) return;
-    // Cegah duplikasi
     if (container.querySelector('#board-stock-order')) return;
     container.innerHTML = `
         <div class="form-title">📦 Manual Input Stok Board per PO (Stok Terbaru)</div>
@@ -218,7 +200,6 @@ window.savePenjualan = function() {
         toast("⚠️ Semua field wajib diisi!");
         return;
     }
-    // Validasi sisa order (gunakan getOrderTerpenuhi dari order.js)
     if (orderId && typeof getOrderTerpenuhi === 'function') {
         const order = window.orderList.find(o => o.id === orderId);
         if (order) {
@@ -313,53 +294,24 @@ window.renderPenjualan = function() {
     container.innerHTML = html;
 };
 
-// ========== STOK REAL TIME ==========
-function renderRealtimeStock() {
-    const container = document.getElementById("realtime-stock-container");
-    if (!container) return;
-    const latest = getLatestBoardStock();
-    if (latest.size === 0) {
-        container.innerHTML = '<div class="empty">📭 Belum ada stok board. Input stok hari ini pada form "Manual Input Stok Board per PO" di bawah.</div>';
-        return;
-    }
-    let html = `<div class="panel-head" style="margin-top:20px;"><h3 class="panel-title">📊 Stok Board Tersedia per PO (Stok Terbaru)</h3><p class="panel-sub">Berdasarkan input stok manual. Gunakan untuk memantau ketersediaan board.</p></div><div class="summary-row">`;
-    for (let [orderId, stok] of latest.entries()) {
-        const order = window.orderList.find(o => o.id === orderId);
-        if (!order) continue;
-        const persen = order.volumeOrder > 0 ? (stok / order.volumeOrder * 100).toFixed(0) : 0;
-        const statusColor = stok >= order.volumeOrder ? 'var(--green)' : (stok > 0 ? 'var(--gold)' : 'var(--red)');
-        html += `
-            <div class="summary-card">
-                <div class="summary-label">${escapeHtml(order.kodePO)} - ${escapeHtml(order.perusahaan)}</div>
-                <div class="summary-value" style="color:${statusColor};">${fmtDec(stok, 2)} m³</div>
-                <div style="font-size:10px;">Order: ${fmtDec(order.volumeOrder, 2)} m³ (${persen}%)</div>
-                <progress value="${persen}" max="100" style="width:100%; height:6px;"></progress>
-                <div style="font-size:10px; margin-top:4px;">${stok >= order.volumeOrder ? '✅ Stok cukup' : (stok > 0 ? '⚠️ Stok terbatas' : '🔴 Habis')}</div>
-            </div>
-        `;
-    }
-    html += `</div>`;
-    container.innerHTML = html;
-}
-
-// Override render agar form dan ringkasan selalu update saat tab dipilih
+// Override render untuk form dan ringkasan (tanpa riwayat dan tanpa stok tersedia)
 const originalRenderSezing = window.renderSezing;
 window.renderSezing = function() {
     if (originalRenderSezing) originalRenderSezing();
-    initBoardStockForm();       // pastikan form ada
+    initBoardStockForm();
     renderBoardStockSummary();
-    renderBoardStockHistory();
-    renderRealtimeStock();
+    renderBoardStockHistory(); // kosong
+    renderRealtimeStock();    // kosong
     refreshBoardStockOrders();
 };
 
 const originalRenderPenjualan = window.renderPenjualan;
 window.renderPenjualan = function() {
     if (originalRenderPenjualan) originalRenderPenjualan();
-    renderRealtimeStock();
+    renderRealtimeStock(); // kosong
 };
 
-// Override saveOrder dan deleteOrder untuk refresh dropdown stok
+// Override saveOrder dan deleteOrder untuk refresh dropdown
 if (typeof window.saveOrder === 'function') {
     const originalSaveOrder = window.saveOrder;
     window.saveOrder = function() {
@@ -379,7 +331,7 @@ if (typeof window.deleteOrder === 'function') {
     };
 }
 
-// Inisialisasi saat DOM siap
+// Inisialisasi
 document.addEventListener('DOMContentLoaded', () => {
     const btnSave = document.getElementById("btn-save-penjualan");
     if (btnSave) btnSave.onclick = () => window.savePenjualan();
@@ -389,3 +341,13 @@ document.addEventListener('DOMContentLoaded', () => {
     renderRealtimeStock();
     refreshBoardStockOrders();
 });
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}

@@ -1,5 +1,101 @@
+// order.js - perbaikan bug "}" dan tata letak rapi
+
 let orderEditId = null;
 
+// Hitung volume terkirim bersih (volume - retur)
+window.getOrderTerpenuhi = function(orderId) {
+    return window.penjualanList.filter(p => p.orderId === orderId).reduce((s, p) => {
+        const netto = (parseFloat(p.volume) || 0) - (parseFloat(p.retur) || 0);
+        return s + netto;
+    }, 0);
+};
+
+// Ambil stok board terbaru untuk suatu orderId (dari boardStockList)
+function getLatestStockByOrderId(orderId) {
+    const stocks = (window.boardStockList || []).filter(s => s.orderId === orderId);
+    if (stocks.length === 0) return 0;
+    const sorted = [...stocks].sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+    return sorted[0].stok || 0;
+}
+
+// Render tabel daftar order
+window.renderOrder = function() {
+    const container = document.getElementById("order-list");
+    if (!container) return;
+
+    if (!window.orderList || !window.orderList.length) {
+        container.innerHTML = '<div class="empty-state">📭 Belum ada order. Klik "+ Order Baru" untuk menambahkan.</div>';
+        document.getElementById("order-count").textContent = "0 order";
+        return;
+    }
+
+    document.getElementById("order-count").textContent = window.orderList.length + " order";
+    const sorted = sortByDateAsc(window.orderList);
+    let html = `
+        <div class="table-wrapper">
+            <table class="order-table" style="width:100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: var(--bg3); border-bottom: 2px solid var(--gold-dim);">
+                        <th style="padding: 10px; text-align: center;">No</th>
+                        <th style="padding: 10px; text-align: left;">Tanggal</th>
+                        <th style="padding: 10px; text-align: left;">Kode PO</th>
+                        <th style="padding: 10px; text-align: left;">Perusahaan</th>
+                        <th style="padding: 10px; text-align: right;">Volume (m³)</th>
+                        <th style="padding: 10px; text-align: right;">Stok Board (m³)</th>
+                        <th style="padding: 10px; text-align: right;">Terkirim (m³)</th>
+                        <th style="padding: 10px; text-align: right;">Sisa (m³)</th>
+                        <th style="padding: 10px; text-align: center;">Status</th>
+                        <th style="padding: 10px; text-align: center;">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    sorted.forEach((o, i) => {
+        const terkirim = window.getOrderTerpenuhi(o.id);
+        const stokBoard = getLatestStockByOrderId(o.id);
+        let sisa = o.volumeOrder - stokBoard - terkirim;
+        if (sisa < 0) sisa = 0;
+        const statusClass = sisa <= 0 ? 'status-badge success' : 'status-badge warning';
+        const statusText = sisa <= 0 ? '✅ Selesai' : '📦 Proses';
+        const rowStyle = i % 2 === 0 ? 'background: var(--row-even);' : 'background: var(--bg3);';
+        html += `
+            <tr style="${rowStyle} border-bottom: 1px solid var(--border);">
+                <td style="padding: 8px; text-align: center;">${i+1}</td>
+                <td style="padding: 8px; text-align: left;">${fmtDate(o.tanggal)}</td>
+                <td style="padding: 8px; text-align: left; font-weight: bold; color: var(--gold);">${escapeHtml(o.kodePO)}</td>
+                <td style="padding: 8px; text-align: left;">${escapeHtml(o.perusahaan)}</td>
+                <td style="padding: 8px; text-align: right;">${fmtDec(o.volumeOrder, 2)}</td>
+                <td style="padding: 8px; text-align: right;">${fmtDec(stokBoard, 2)}</td>
+                <td style="padding: 8px; text-align: right;">${fmtDec(terkirim, 2)}</td>
+                <td style="padding: 8px; text-align: right; color: ${sisa > 0 ? 'var(--orange)' : 'var(--green)'};">${fmtDec(sisa, 2)}</td>
+                <td style="padding: 8px; text-align: center;"><span class="${statusClass}">${statusText}</span></td>
+                <td style="padding: 8px; text-align: center;">
+                    <button class="btn-icon edit" onclick="window.editOrder('${o.id}')" title="Edit">✏️</button>
+                    <button class="btn-icon delete" onclick="window.deleteOrder('${o.id}')" title="Hapus">🗑️</button>
+                </td>
+            </tr>
+        `;
+    });
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+};
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// Update ringkasan (tidak digunakan, tapi dipanggil dari luar)
+window.updateAllOrderSummaries = function() {
+    if (typeof renderBoardStockSummary === 'function') renderBoardStockSummary();
+};
+
+// Form edit/tambah order
 window.openOrderForm = function(item) {
     orderEditId = item?.id || null;
     document.getElementById("order-tanggal").value = item?.tanggal || today();
@@ -21,8 +117,17 @@ window.saveOrder = function() {
     const po = document.getElementById("order-po").value.trim();
     const perusahaan = document.getElementById("order-perusahaan").value.trim();
     const vol = document.getElementById("order-volume").value;
-    if (!tgl || !po || !perusahaan || !vol || parseFloat(vol) <= 0) { toast("⚠️ Semua field wajib!"); return; }
-    const item = { id: orderEditId || uid(), tanggal: tgl, kodePO: po, perusahaan, volumeOrder: parseFloat(vol) };
+    if (!tgl || !po || !perusahaan || !vol || parseFloat(vol) <= 0) {
+        toast("⚠️ Semua field wajib diisi!");
+        return;
+    }
+    const item = {
+        id: orderEditId || uid(),
+        tanggal: tgl,
+        kodePO: po,
+        perusahaan: perusahaan,
+        volumeOrder: parseFloat(vol)
+    };
     if (orderEditId) {
         window.orderList = window.orderList.map(o => o.id === orderEditId ? item : o);
         logActivity('Update', 'Order', `PO: ${item.kodePO}`);
@@ -32,8 +137,10 @@ window.saveOrder = function() {
     }
     persistAll();
     closeOrderForm();
-    renderOrder();
-    renderPenjualan();
+    window.updateAllOrderSummaries();
+    if (typeof renderPenjualan === 'function') renderPenjualan();
+    if (typeof populateOrderDropdown === 'function') populateOrderDropdown();
+    window.renderOrder();
     toast("✅ Order disimpan!");
 };
 
@@ -42,36 +149,37 @@ window.deleteOrder = function(id) {
     if (item) logActivity('Hapus', 'Order', `PO: ${item.kodePO}`);
     if (!confirmDialog("Hapus order?")) return;
     const terkait = penjualanList.filter(p => p.orderId === id);
-    if (terkait.length > 0 && !confirmDialog(`Order ini memiliki ${terkait.length} pengiriman. Hapus juga?`)) return;
+    if (terkait.length > 0 && !confirmDialog(`Order ini memiliki ${terkait.length} pengiriman. Hapus juga?`)) {
+        return;
+    }
     window.penjualanList = penjualanList.filter(p => p.orderId !== id);
     window.orderList = window.orderList.filter(o => o.id !== id);
     persistAll();
-    renderOrder();
-    renderPenjualan();
+    window.updateAllOrderSummaries();
+    if (typeof renderPenjualan === 'function') renderPenjualan();
+    window.renderOrder();
     toast("🗑️ Dihapus");
 };
 
 window.editOrder = function(id) {
     const item = window.orderList.find(o => o.id === id);
-    if (item) openOrderForm(item);
+    if (item) window.openOrderForm(item);
 };
 
-// Dijadikan window agar bisa dipanggil dari sezing.js tanpa risiko urutan load script
-window.getOrderTerpenuhi = function(orderId) {
-    return window.penjualanList.filter(p => p.orderId === orderId).reduce((s, p) => s + (parseFloat(p.volume) || 0), 0);
-};
-
+// Dropdown untuk form penjualan
 window.populateOrderDropdown = function(selectedOrderId = null) {
     const select = document.getElementById("jual-order");
     if (!select) return;
     select.innerHTML = '<option value="">-- Pilih Order --</option>';
     window.orderList.forEach(o => {
         const terkirim = window.getOrderTerpenuhi(o.id);
-        const sisa = o.volumeOrder - terkirim;
+        const stokBoard = getLatestStockByOrderId(o.id);
+        let sisa = o.volumeOrder - stokBoard - terkirim;
+        if (sisa < 0) sisa = 0;
         if (sisa > 0 || o.id === selectedOrderId) {
             const opt = document.createElement("option");
             opt.value = o.id;
-            opt.textContent = `${o.kodePO} - ${o.perusahaan} (Sisa:${fmtDec(sisa, 2)}m³)`;
+            opt.textContent = `${o.kodePO} - ${o.perusahaan} (Sisa: ${fmtDec(sisa, 2)} m³)`;
             if (o.id === selectedOrderId) opt.selected = true;
             select.appendChild(opt);
         }
@@ -89,17 +197,9 @@ window.populateOrderDropdown = function(selectedOrderId = null) {
     }
 };
 
-window.renderOrder = function() {
-    document.getElementById("order-count").textContent = window.orderList.length + " order";
-    const container = document.getElementById("order-list");
-    if (!window.orderList.length) { container.innerHTML = '<div class="empty">📭 Belum ada order</div>'; return; }
-    const sorted = sortByDateAsc(window.orderList);
-    let html = '<div class="table-wrap"><table><thead><tr><th>No</th><th>Tanggal</th><th>Kode PO</th><th>Perusahaan</th><th>Vol</th><th>Terkirim</th><th>Sisa</th><th>Status</th><th>Aksi</th></tr></thead><tbody>';
-    sorted.forEach((o, i) => {
-        const terkirim = window.getOrderTerpenuhi(o.id);
-        const sisa = o.volumeOrder - terkirim;
-        html += `<tr class="${i % 2 ? 'odd' : 'even'}"><td class="center">${i+1}</td><td>${fmtDate(o.tanggal)}</td><td class="highlight">${o.kodePO}</td><td>${o.perusahaan}</td><td class="right">${fmtDec(o.volumeOrder,2)}</td><td class="right">${fmtDec(terkirim,2)}</td><td class="right" style="color:${sisa > 0 ? 'var(--orange)' : 'var(--green)'}">${fmtDec(sisa,2)}</td><td>${sisa <= 0 ? '✅ Selesai' : '📦 Proses'}</td><td><div class="flex gap4"><button class="btn btn-edit btn-sm" onclick="window.editOrder('${o.id}')">✏️</button><button class="btn btn-del btn-sm" onclick="window.deleteOrder('${o.id}')">🗑️</button></div></td></tr>`;
-    });
-    html += '</tbody></table></div>';
-    container.innerHTML = html;
-};
+// Panggil renderOrder saat halaman siap
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        if (window.orderList) window.renderOrder();
+    }, 100);
+});
