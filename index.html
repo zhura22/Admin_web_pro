@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Sistem Manajemen Produksi | Sawmill & Palet</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- MAIN APP CONTAINER -->
+<div id="app-container">
+    <header>
+        <div class="header-inner">
+            <div class="logo"><svg class="logo-icon" viewBox="0 0 38 38" fill="none"><rect x="3" y="16" width="32" height="6" rx="2" fill="#d4a017"/><rect x="7" y="9" width="24" height="4" rx="1.5" fill="#d4a017" opacity="0.8"/><rect x="11" y="25" width="16" height="4" rx="1.5" fill="#d4a017" opacity="0.5"/><circle cx="19" cy="5" r="4" fill="#d4a017"/></svg><div><div class="logo-title">Admin Produksi</div><div class="logo-sub">Sawmill · Oven · Produksi · Sezing · Penjualan</div></div></div>
+            <div class="header-actions">
+                <span class="alert-badge" id="header-alert" style="display:none;" onclick="switchTab('dashboard')">⚠️ <span id="alert-count">0</span></span>
+                <span class="badge" id="header-date"></span>
+                <span class="badge" id="header-user"></span>
+                <button class="btn btn-sm btn-secondary" id="theme-toggle-btn" title="Ganti Tema">🎨 Tema</button>
+                <button class="btn btn-sm btn-secondary" onclick="showHelp()">❓ Bantuan</button>
+            </div>
+        </div>
+    </header>
+    <div class="app-layout">
+        <div class="sidebar">
+            <div class="sidebar-label">Utama</div>
+            <div class="sidebar-menu"><button class="sidebar-item" data-tab="dashboard"><span class="icon">🏠</span>Dashboard</button><button class="sidebar-item" data-tab="kayu"><span class="icon">🪵</span>Pembelian Kayu</button><button class="sidebar-item" data-tab="order"><span class="icon">📑</span>Order Masuk</button><button class="sidebar-item" data-tab="sawmill"><span class="icon">📋</span>Laporan Sawmill</button><button class="sidebar-item" data-tab="oven"><span class="icon">🔥</span>Status Oven</button><button class="sidebar-item" data-tab="produksi"><span class="icon">📦</span>Laporan Produksi</button><button class="sidebar-item" data-tab="sezing"><span class="icon">📏</span>Sezing & Penjualan</button></div>
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-label">Kontrol & Analisis</div>
+            <div class="sidebar-menu"><button class="sidebar-item" data-tab="batch"><span class="icon">🔗</span>Batch Tracking</button><button class="sidebar-item" data-tab="opname"><span class="icon">🧮</span>Stok Opname</button><button class="sidebar-item" data-tab="rekap"><span class="icon">📊</span>Rekap & Aliran</button><button class="sidebar-item" data-tab="log"><span class="icon">📜</span>Log Aktivitas</button><button class="sidebar-item" data-tab="settings"><span class="icon">⚙️</span>Pengaturan</button><button class="sidebar-item" data-tab="export"><span class="icon">📁</span>Export / Import</button></div>
+        </div>
+        <main class="main-content">
+            <!-- Dashboard -->
+            <div id="tab-dashboard" class="panel">
+                <div id="dashboard-container"></div>
+                <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">🎯 Target Hari Ini</h2></div>
+                <div id="target-capaian-container" class="rekap-stats"></div>
+                
+                <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">📊 Target vs Realisasi (Kumulatif Bulan Ini)</h2></div>
+                <div class="chart-vertical" id="target-charts-container">
+                    <canvas id="chart-target-kayu" height="200"></canvas>
+                    <canvas id="chart-target-sawmill" height="200"></canvas>
+                    <canvas id="chart-target-planer" height="200"></canvas>
+                    <canvas id="chart-target-ripsaw" height="200"></canvas>
+                    <canvas id="chart-target-seri" height="200"></canvas>
+                    <canvas id="chart-target-press" height="200"></canvas>
+                    <canvas id="chart-target-sezing" height="200"></canvas>
+                </div>
+                
+                <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">📈 Tren 30 Hari Terakhir</h2></div>
+                <div class="chart-vertical">
+                    <canvas id="chart-rendemen" height="200"></canvas>
+                    <canvas id="chart-produksi" height="200"></canvas>
+                    <canvas id="chart-stok" height="200"></canvas>
+                    <canvas id="chart-penjualan" height="200"></canvas>
+                </div>
+            </div>
+            
+            <!-- Kayu -->
+            <div id="tab-kayu" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">🪵 Pembelian Kayu</h2><p class="panel-sub" id="kayu-count">0 transaksi</p></div><div class="flex gap10 items-center wrap"><input class="search" type="text" id="kayu-search" placeholder="🔍 Cari..." oninput="window.renderKayu()"><div class="subtab-toggle flex gap4"><button class="btn btn-primary subtab-btn active" data-subtab="kayu-input">+ Input Baru</button><button class="btn btn-secondary subtab-btn" data-subtab="kayu-list">📋 Daftar</button></div><button class="btn btn-print btn-sm" onclick="window.printSection('tab-kayu')">🖨️ Cetak</button></div></div>
+                <div id="kayu-input" class="subtab-panel hidden"><div class="form-card" id="kayu-form"><div class="form-title" id="kayu-form-title">➕ Input Pembelian Kayu</div><div class="grid3"><div class="field"><label>Tanggal *</label><input type="date" id="k-tanggal"></div><div class="field"><label>No. Nota *</label><input type="text" id="k-nonota"></div><div class="field"><label>No. Truk</label><input type="text" id="k-notruk"></div><div class="field"><label>Jml Batang</label><input type="number" id="k-batang" min="0"></div><div class="field"><label>Volume (m³)</label><input type="number" step="any" id="k-volume" min="0"></div><div class="field"><label>Harga (Rp)</label><input type="number" id="k-harga" min="0"></div><div class="field"><label>Suplier *</label><input type="text" id="k-suplier"></div><div class="field"><label>Asal Bahan</label><input type="text" id="k-asal" placeholder="Hutan, TPK"></div><div class="field"><label>Jenis *</label><select id="k-jenis"><option value="glondong">Glondong</option><option value="papan">Papan</option></select></div><div class="field"><label>Grade</label><select id="k-grade"><option value="bagus">Bagus</option><option value="jelek">Jelek</option></select></div></div><div class="form-actions"><button class="btn btn-secondary" onclick="window.closeKayuForm()">Batal</button><button class="btn btn-primary" onclick="window.saveKayu()">Simpan</button></div></div></div>
+                <div id="kayu-list" class="subtab-panel"><div class="summary-row" id="kayu-summary"><div class="summary-card"><div class="summary-label">Total</div><div class="summary-value" id="s-k-total">0 nota</div></div><div class="summary-card"><div class="summary-label">Volume</div><div class="summary-value" id="s-k-vol">0 m³</div></div><div class="summary-card"><div class="summary-label">Nilai</div><div class="summary-value" id="s-k-harga">Rp 0</div></div><div class="summary-card"><div class="summary-label">Harga Rata</div><div class="summary-value" id="s-k-avgprice">Rp 0/m³</div></div></div><div class="table-wrap"><table><thead><tr><th>No</th><th>Tanggal</th><th>No.Nota</th><th>Suplier</th><th>Asal</th><th>Jenis</th><th>Grade</th><th>Btg</th><th>Vol</th><th>Harga</th><th>Aksi</th></tr></thead><tbody id="kayu-tbody"></tbody></table></div></div>
+            </div>
+
+            <!-- Order -->
+            <div id="tab-order" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">📑 Order Masuk</h2><p class="panel-sub" id="order-count">0 order</p></div><div class="flex gap10 items-center wrap"><div class="subtab-toggle flex gap4"><button class="btn btn-primary subtab-btn active" data-subtab="order-input">+ Order Baru</button><button class="btn btn-secondary subtab-btn" data-subtab="order-list">📋 Daftar</button></div><button class="btn btn-print btn-sm" onclick="window.printSection('tab-order')">🖨️ Cetak</button></div></div>
+                <div id="order-input" class="subtab-panel hidden"><div class="form-card" id="order-form"><div class="form-title">➕ Input Order</div><div class="grid2"><div class="field"><label>Tanggal *</label><input type="date" id="order-tanggal"></div><div class="field"><label>Kode PO *</label><input type="text" id="order-po" placeholder="PO-001"></div><div class="field"><label>Perusahaan *</label><input type="text" id="order-perusahaan"></div><div class="field"><label>Volume (m³) *</label><input type="number" step="any" id="order-volume" min="0"></div></div><div class="form-actions"><button class="btn btn-secondary" onclick="window.closeOrderForm()">Batal</button><button class="btn btn-primary" onclick="window.saveOrder()">Simpan</button></div></div></div>
+                <div id="order-list" class="subtab-panel"></div>
+            </div>
+
+            <!-- Sawmill -->
+            <div id="tab-sawmill" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">📋 Laporan Sawmill</h2><p class="panel-sub" id="sawmill-count">0 laporan</p></div><div class="flex gap10 items-center wrap"><div class="subtab-toggle flex gap4"><button class="btn btn-primary subtab-btn active" data-subtab="sawmill-input">+ Laporan Baru</button><button class="btn btn-secondary subtab-btn" data-subtab="sawmill-list">📋 Daftar</button></div><button class="btn btn-print btn-sm" onclick="window.printSection('tab-sawmill')">🖨️ Cetak</button></div></div>
+                <div id="sawmill-input" class="subtab-panel hidden"><div class="form-card" id="sawmill-form-container"></div></div>
+                <div id="sawmill-list" class="subtab-panel"></div>
+            </div>
+
+            <!-- Oven -->
+            <div id="tab-oven" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">🔥 Status Oven (7 Chamber)</h2><p class="panel-sub">Data dari laporan sawmill</p></div><button class="btn btn-del btn-sm" onclick="window.resetOvenData()">🔄 Reset Semua</button></div>
+                <div id="oven-container" class="oven-grid"></div><div class="mt16"><div class="subtitle">📜 Riwayat Pengisian Oven</div><div class="table-wrap"></table><thead><tr><th>Chamber</th><th>Open No.</th><th>Volume Masuk</th><th>Tgl Mulai</th><th>Tgl Selesai</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="oven-history-tbody"></tbody></table></div></div>
+            </div>
+
+            <!-- Produksi -->
+            <div id="tab-produksi" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">📦 Laporan Produksi</h2><p class="panel-sub" id="produksi-count">0 laporan</p></div><div class="flex gap10 items-center wrap"><div class="subtab-toggle flex gap4"><button class="btn btn-primary subtab-btn active" data-subtab="produksi-input">+ Laporan Baru</button><button class="btn btn-secondary subtab-btn" data-subtab="produksi-list">📋 Daftar</button></div><button class="btn btn-print btn-sm" onclick="window.printSection('tab-produksi')">🖨️ Cetak</button></div></div>
+                <div id="produksi-input" class="subtab-panel hidden"><div class="form-card" id="produksi-form-container"></div></div>
+                <div id="produksi-list" class="subtab-panel"></div>
+            </div>
+
+            <!-- Sezing & Penjualan -->
+            <div id="tab-sezing" class="panel hidden">
+                <div class="panel-head"><div><h2 class="panel-title">📏 Sezing & Penjualan</h2><p class="panel-sub">Laminating Board & Limbah</p></div><div class="flex gap10 items-center wrap"><div class="subtab-toggle flex gap4"><button class="btn btn-primary subtab-btn active" data-subtab="sezing-input">+ Input</button><button class="btn btn-secondary subtab-btn" data-subtab="sezing-list">📋 Daftar</button></div></div></div>
+                
+                <div id="sezing-input" class="subtab-panel hidden">
+                    <div class="form-card"><div class="form-title">📐 Hasil Sezing</div><div class="grid2"><div class="field"><label>Tanggal *</label><input type="date" id="sezing-tanggal"></div><div class="field"><label>Volume (m³) *</label><input type="number" step="any" id="sezing-volume" min="0"></div></div><div class="form-actions"><button class="btn btn-primary" onclick="window.saveSezing()">💾 Simpan</button></div></div>
+                    <div class="form-card mt16"><div class="form-title">💰 Penjualan</div><div class="grid3"><div class="field"><label>Tanggal *</label><input type="date" id="jual-tanggal"></div><div class="field"><label>Pcs *</label><input type="number" id="jual-pcs" min="0"></div><div class="field"><label>Volume (m³)*</label><input type="number" step="any" id="jual-volume" min="0"></div><div class="field"><label>No.Truk *</label><input type="text" id="jual-truk"></div><div class="field"><label>Tujuan *</label><input type="text" id="jual-tujuan"></div><div class="field"><label>Order *</label><select id="jual-order"><option value="">-- Pilih --</option></select></div><div class="field"><label>Total Harga *</label><input type="number" id="jual-harga" min="0"></div><div class="field"><label>Retur (m³)</label><input type="number" step="any" id="jual-retur" min="0" value="0"></div></div><div class="form-actions"><button class="btn btn-secondary" onclick="window.resetJualForm()">🔄 Reset</button><button class="btn btn-primary" id="btn-save-penjualan">💾 Simpan</button></div></div>
+                </div>
+                
+                <div id="sezing-list" class="subtab-panel">
+                    <div id="sezing-list-content"></div>
+                    <div id="penjualan-list-content" class="mt16"></div>
+                </div>
+
+                <!-- TAMBAHAN CONTAINER UNTUK STOK BOARD MANUAL -->
+                <div id="board-stock-form-container" class="form-card" style="margin-bottom: 20px;"></div>
+                <div id="board-stock-latest-container" class="rekap-stats" style="margin-bottom: 20px;"></div>
+                <div id="board-stock-history"></div>
+                <div id="realtime-stock-container" class="rekap-stats" style="margin-bottom: 20px;"></div>
+                <!-- END TAMBAHAN -->
+
+            </div>
+
+            <!-- Batch Tracking -->
+            <div id="tab-batch" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">🔗 Batch Tracking</h2><p class="panel-sub">Lacak aliran material per Open No.</p></div></div><div id="batch-list"></div></div>
+
+            <!-- Opname -->
+            <div id="tab-opname" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">🧮 Stok Opname & Rekonsiliasi</h2><p class="panel-sub">Bandingkan stok fisik & sezing aktual</p></div></div>
+                <div class="form-card"><div class="form-title">📝 Input Opname</div><div class="grid2"><div class="field"><label>Bulan *</label><input type="month" id="opname-bulan"></div></div><div class="section-head">Stok Fisik (lapangan)</div><div class="grid3"><div class="field"><label>Kayu Log (m³)</label><input type="number" step="any" id="opname-log"></div><div class="field"><label>Palet Basah (m³)</label><input type="number" step="any" id="opname-basah"></div><div class="field"><label>Palet Kering (m³)</label><input type="number" step="any" id="opname-kering"></div><div class="field"><label>Laminating Board (m³)</label><input type="number" step="any" id="opname-board"></div><div class="field"><label>Limbah (m³)</label><input type="number" step="any" id="opname-limbah"></div><div class="field"><label>Stok Awal Board (m³)</label><input type="number" step="any" id="opname-awal-board" placeholder="Stok board awal bulan"></div></div><div class="field span3"><label>Catatan</label><input type="text" id="opname-catatan"></div><div class="form-actions"><button class="btn btn-primary" onclick="window.saveOpname()">💾 Simpan Opname</button></div></div><div id="opname-list"></div>
+            </div>
+
+            <!-- Rekap -->
+            <div id="tab-rekap" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">📊 Rekap & Aliran Material</h2><p class="panel-sub">Filter tanggal untuk analisis</p></div><div class="flex gap10 items-center wrap"><input type="date" id="rekap-tgl-awal" /><span>s/d</span><input type="date" id="rekap-tgl-akhir" /><button class="btn btn-secondary btn-sm" onclick="window.renderRekapRange()">📊 Tampilkan</button><button class="btn btn-secondary btn-sm" onclick="window.exportRekapCSVRange()">📥 CSV</button><button class="btn btn-print btn-sm" onclick="window.printSection('tab-rekap')">🖨️ Cetak</button></div></div><div id="rekap-flow" class="flow-container"></div><div id="rekap-stats-container" class="rekap-stats"></div><div class="tab-section"><div class="subtitle">📋 Sawmill</div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Proses</th><th>Rendemen</th><th>Palet</th><th>Msk</th><th>Tdk</th></tr></thead><tbody id="rekap-tbody"></tbody></table></div></div><div class="tab-section"><div class="subtitle">📦 Produksi</div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Batch</th><th>Input</th><th>Bagus</th><th>Mis</th><th>Ripsaw</th><th>Seri</th><th>Press</th><th>Limbah</th><th>Reject</th></tr></thead><tbody id="rekap-produksi-tbody"></tbody></table></div></div><div class="tab-section"><div class="subtitle">📏 Sezing & Penjualan</div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Sezing</th><th>Jual</th><th>Retur</th></tr></thead><tbody id="rekap-sezing-tbody"></tbody></table></div></div>
+            </div>
+
+            <!-- Log -->
+            <div id="tab-log" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">📜 Log Aktivitas</h2></div></div><div id="log-list"></div></div>
+
+            <!-- Settings -->
+            <div id="tab-settings" class="panel hidden"><div id="settings-container"></div></div>
+
+            <!-- Export -->
+            <div id="tab-export" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">📁 Export / Import</h2><p class="panel-sub">Backup & restore JSON</p></div></div><div class="form-card" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;"><button class="btn btn-primary" onclick="window.exportData()">📤 Export</button><label class="btn btn-secondary" style="cursor:pointer;">📥 Import<input type="file" id="import-file" accept=".json" style="display:none"></label><button class="btn btn-del btn-sm" onclick="window.resetAllData()">⚠️ Reset Data</button></div><p style="text-align:center;color:var(--muted);margin-top:20px;">Data disimpan di localStorage. Ekspor secara berkala untuk backup.</p></div>
+        </main>
+    </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/components/toast.js"></script>
+<script src="js/components/modal.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/logger.js"></script>
+<script src="js/alerts.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/backup.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/modules/kayu.js"></script>
+<script src="js/modules/order.js"></script>
+<script src="js/modules/sawmill.js"></script>
+<script src="js/modules/oven.js"></script>
+<script src="js/modules/produksi.js"></script>
+<script src="js/modules/sezing.js"></script>
+<script src="js/modules/opname.js"></script>
+<script src="js/modules/rekap.js"></script>
+<script src="js/app.js"></script>
+<script src="js/themes.js"></script>
+</body>
+</html>
