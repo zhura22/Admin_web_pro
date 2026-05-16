@@ -1,6 +1,153 @@
+// produksi.js - lengkap dengan Rangkuman Bulanan
+
 let produksiEditId = null;
 window._produksiSumberPalet = [];
 
+// ========== RENDER RINGKASAN BULANAN ==========
+function renderProduksiSummary() {
+    const bulan = document.getElementById("produksi-summary-bulan")?.value || thisMonth();
+    const reports = window.produksiList.filter(p => p.tanggal && p.tanggal.startsWith(bulan));
+    const container = document.getElementById("produksi-summary-content");
+    if (!container) return;
+    if (reports.length === 0) {
+        container.innerHTML = '<div class="empty">📭 Tidak ada laporan produksi pada bulan ini</div>';
+        return;
+    }
+
+    // Agregasi
+    let totalPlanerBagus = 0, totalPlanerMis = 0, totalRipsawIn = 0, totalSeri = 0, totalPress = 0;
+    let totalLimbah = 0, totalReject = 0, totalTenagaMasuk = 0, totalTenagaTidak = 0;
+    const shift1Data = { planerBagus: 0, planerMis: 0, ripsawIn: 0, seri: 0, press: 0, masuk: 0, tidak: 0 };
+    const shift2Data = { planerBagus: 0, planerMis: 0, ripsawIn: 0, seri: 0, press: 0, masuk: 0, tidak: 0 };
+    const perHari = {};
+
+    reports.forEach(p => {
+        const s1 = p.shift1 || {};
+        const s2 = p.shift2 || {};
+        const planerBagus = (s1.planerBagus||0) + (s2.planerBagus||0);
+        const planerMis = (s1.planerMis||0) + (s2.planerMis||0);
+        const ripsawIn = (s1.ripsawIn||0) + (s2.ripsawIn||0);
+        const seri = (s1.seri||0) + (s2.seri||0);
+        const press = (s1.press||0) + (s2.press||0);
+        const masuk = (s1.masuk||0) + (s2.masuk||0);
+        const tidak = (s1.tidakMasuk||0) + (s2.tidakMasuk||0);
+        
+        totalPlanerBagus += planerBagus;
+        totalPlanerMis += planerMis;
+        totalRipsawIn += ripsawIn;
+        totalSeri += seri;
+        totalPress += press;
+        totalLimbah += p.limbah || 0;
+        totalReject += p.reject || 0;
+        totalTenagaMasuk += masuk;
+        totalTenagaTidak += tidak;
+        
+        shift1Data.planerBagus += s1.planerBagus||0;
+        shift1Data.planerMis += s1.planerMis||0;
+        shift1Data.ripsawIn += s1.ripsawIn||0;
+        shift1Data.seri += s1.seri||0;
+        shift1Data.press += s1.press||0;
+        shift1Data.masuk += s1.masuk||0;
+        shift1Data.tidak += s1.tidakMasuk||0;
+        
+        shift2Data.planerBagus += s2.planerBagus||0;
+        shift2Data.planerMis += s2.planerMis||0;
+        shift2Data.ripsawIn += s2.ripsawIn||0;
+        shift2Data.seri += s2.seri||0;
+        shift2Data.press += s2.press||0;
+        shift2Data.masuk += s2.masuk||0;
+        shift2Data.tidak += s2.tidakMasuk||0;
+        
+        perHari[p.tanggal] = { planerBagus, planerMis, ripsawIn, seri, press, limbah: p.limbah||0, reject: p.reject||0 };
+    });
+    
+    const hariAktif = Object.keys(perHari).length;
+    const rataPlaner = hariAktif > 0 ? totalPlanerBagus / hariAktif : 0;
+    const rataPress = hariAktif > 0 ? totalPress / hariAktif : 0;
+    
+    let html = `
+        <div class="summary-row" style="margin-bottom: 20px;">
+            <div class="summary-card"><div class="summary-label">Total Laporan</div><div class="summary-value">${reports.length}</div></div>
+            <div class="summary-card"><div class="summary-label">Hari Aktif</div><div class="summary-value">${hariAktif}</div></div>
+            <div class="summary-card"><div class="summary-label">Total Planer Bagus</div><div class="summary-value">${fmtDec(totalPlanerBagus, 2)} m³</div></div>
+            <div class="summary-card"><div class="summary-label">Rata-rata Planer/hari</div><div class="summary-value">${fmtDec(rataPlaner, 2)} m³</div></div>
+        </div>
+        <div class="summary-row">
+            <div class="summary-card"><div class="summary-label">Total Limbah</div><div class="summary-value">${fmtDec(totalLimbah, 2)} m³</div></div>
+            <div class="summary-card"><div class="summary-label">Total Reject</div><div class="summary-value">${fmt(totalReject)} pcs</div></div>
+            <div class="summary-card"><div class="summary-label">Total Press</div><div class="summary-value">${fmt(totalPress)} lbr</div></div>
+            <div class="summary-card"><div class="summary-label">Rata-rata Press/hari</div><div class="summary-value">${fmt(rataPress)} lbr</div></div>
+        </div>
+        <div class="section-head">📊 Perbandingan Shift</div>
+        <div class="table-wrap">
+            <table style="width:100%">
+                <thead><tr><th>Shift</th><th>Planer Bagus (m³)</th><th>Planer Mis (sap)</th><th>Ripsaw In (m³)</th><th>Seri (lbr)</th><th>Press (lbr)</th><th>Tenaga Masuk</th><th>Tenaga Tidak</th></tr></thead>
+                <tbody>
+                    <tr><td class="highlight">Shift 1</td><td class="right">${fmtDec(shift1Data.planerBagus,2)}</td><td class="right">${shift1Data.planerMis}</td><td class="right">${fmtDec(shift1Data.ripsawIn,2)}</td><td class="right">${shift1Data.seri}</td><td class="right">${shift1Data.press}</td><td class="right">${shift1Data.masuk}</td><td class="right">${shift1Data.tidak}</td></tr>
+                    <tr><td class="highlight">Shift 2</td><td class="right">${fmtDec(shift2Data.planerBagus,2)}</td><td class="right">${shift2Data.planerMis}</td><td class="right">${fmtDec(shift2Data.ripsawIn,2)}</td><td class="right">${shift2Data.seri}</td><td class="right">${shift2Data.press}</td><td class="right">${shift2Data.masuk}</td><td class="right">${shift2Data.tidak}</td></tr>
+                    <tr style="font-weight:bold; background:var(--gold-dim);"><td>Total</td><td class="right">${fmtDec(totalPlanerBagus,2)}</td><td class="right">${totalPlanerMis}</td><td class="right">${fmtDec(totalRipsawIn,2)}</td><td class="right">${totalSeri}</td><td class="right">${totalPress}</td><td class="right">${totalTenagaMasuk}</td><td class="right">${totalTenagaTidak}</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="section-head mt16">📈 Tren Produksi per Hari</div>
+        <div style="overflow-x: auto;">
+            <table style="width:100%; font-size:11px;">
+                <thead><tr><th>Tanggal</th><th>Planer Bagus (m³)</th><th>Planer Mis</th><th>Ripsaw In</th><th>Seri</th><th>Press</th><th>Limbah</th><th>Reject</th></tr></thead>
+                <tbody>
+                    ${Object.keys(perHari).sort().map(tgl => {
+                        const d = perHari[tgl];
+                        return `<tr><td>${fmtDate(tgl)}</td><td class="right">${fmtDec(d.planerBagus,2)}</td><td class="right">${d.planerMis}</td><td class="right">${fmtDec(d.ripsawIn,2)}</td><td class="right">${d.seri}</td><td class="right">${d.press}</td><td class="right">${fmtDec(d.limbah,2)}</td><td class="right">${d.reject}</td></tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    container.innerHTML = html;
+}
+
+// ========== INISIALISASI PANEL RINGKASAN DI TAB PRODUKSI ==========
+function initProduksiSummary() {
+    const tabProduksi = document.getElementById("tab-produksi");
+    if (!tabProduksi) return;
+    if (document.getElementById("produksi-summary-panel")) return;
+    const subtabContainer = tabProduksi.querySelector('.subtab-toggle');
+    if (subtabContainer && !subtabContainer.querySelector('[data-subtab="produksi-summary-panel"]')) {
+        const btnSummary = document.createElement('button');
+        btnSummary.className = 'btn btn-secondary subtab-btn';
+        btnSummary.setAttribute('data-subtab', 'produksi-summary-panel');
+        btnSummary.textContent = '📊 Rangkuman Bulanan';
+        btnSummary.onclick = () => {
+            document.querySelectorAll('#tab-produksi .subtab-panel').forEach(p => p.classList.add('hidden'));
+            document.getElementById('produksi-summary-panel').classList.remove('hidden');
+            document.querySelectorAll('#tab-produksi .subtab-btn').forEach(btn => {
+                btn.classList.remove('active', 'btn-primary');
+                btn.classList.add('btn-secondary');
+            });
+            btnSummary.classList.add('active', 'btn-primary');
+            btnSummary.classList.remove('btn-secondary');
+            renderProduksiSummary();
+        };
+        subtabContainer.appendChild(btnSummary);
+    }
+    const summaryPanel = document.createElement('div');
+    summaryPanel.id = 'produksi-summary-panel';
+    summaryPanel.className = 'subtab-panel hidden';
+    summaryPanel.innerHTML = `
+        <div class="form-card">
+            <div class="form-title">📊 Rangkuman Produksi per Bulan</div>
+            <div class="grid2">
+                <div class="field"><label>Bulan (YYYY-MM)</label><input type="month" id="produksi-summary-bulan" value="${thisMonth()}"></div>
+                <div class="field"><button class="btn btn-primary" onclick="renderProduksiSummary()" style="margin-top:22px;">Tampilkan</button></div>
+            </div>
+            <div id="produksi-summary-content"></div>
+        </div>
+    `;
+    const produksiListPanel = document.getElementById("produksi-list");
+    if (produksiListPanel) produksiListPanel.insertAdjacentElement('afterend', summaryPanel);
+    else tabProduksi.appendChild(summaryPanel);
+}
+
+// ========== FUNGSI CRUD PRODUKSI (SAMA SEPERTI SEBELUMNYA) ==========
 window.openProduksiForm = function(item) {
     produksiEditId = item?.id || null;
     window._produksiSumberPalet = item ? JSON.parse(JSON.stringify(item.asalPalet || [])) : [];
@@ -86,9 +233,7 @@ function renderSumberPalet() {
     if (!window._produksiSumberPalet.length) { c.innerHTML = '<p style="color:#666">Belum ada sumber palet.</p>'; return; }
     const openList = [...new Set(window.sawmillList.map(s => s.openNo).filter(Boolean))];
     c.innerHTML = window._produksiSumberPalet.map((s, i) => {
-        const openOptions = openList.map(no =>
-            `<option value="${no}"${no === s.openNo ? ' selected' : ''}>${no}</option>`
-        ).join("");
+        const openOptions = openList.map(no => `<option value="${no}"${no === s.openNo ? ' selected' : ''}>${no}</option>`).join("");
         return `
         <div class="palet-row-horizontal">
             <div class="palet-field"><label>Open No.</label><select onchange="window._produksiSumberPalet[${i}].openNo = this.value"><option value="">--Pilih--</option>${openOptions}</select></div>
@@ -197,3 +342,8 @@ window.renderProduksi = function() {
         </div>`;
     }).join("");
 };
+
+// Jalankan inisialisasi ringkasan
+setTimeout(() => {
+    initProduksiSummary();
+}, 500);

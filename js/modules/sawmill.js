@@ -1,9 +1,9 @@
-// sawmill.js - perbaikan bug "}" dan tampilan card laporan
+// sawmill.js - Final (form dinamis, filter bulan stabil, volume tanpa jumlah)
 
 window.paletRows = [];
 let sawmillEditId = null;
 
-// ========== FUNGSI PERHITUNGAN VOLUME ==========
+// ========== PERHITUNGAN VOLUME (tanpa jumlah) ==========
 function hitungVolumeBaris(row) {
     const tebal = parseFloat(row.tebal) || 0;
     const lebar = parseFloat(row.lebar) || 0;
@@ -56,83 +56,98 @@ function renderPaletRows() {
     const c = document.getElementById("palet-container");
     if (!c) return;
     if (!window.paletRows.length) {
-        c.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: var(--radius-sm);">Belum ada palet. Klik "+ Tambah Palet".</div>';
+        c.innerHTML = '<div class="empty">Belum ada palet. Klik "+ Tambah Palet".</div>';
         return;
     }
     let html = `
         <div style="overflow-x: auto;">
-            <table style="width:100%; border-collapse: collapse; font-size: 12px;">
-                <thead>
-                    <tr style="background: var(--bg3); border-bottom: 2px solid var(--gold-dim);">
-                        <th style="padding: 8px; text-align: left;">Jumlah Palet</th>
-                        <th style="padding: 8px; text-align: left;">Tebal (mm)</th>
-                        <th style="padding: 8px; text-align: left;">Lebar (cm)</th>
-                        <th style="padding: 8px; text-align: left;">Panjang (cm)</th>
-                        <th style="padding: 8px; text-align: left;">SAP (total lembar)</th>
-                        <th style="padding: 8px; text-align: right;">Volume (m³)</th>
-                        <th style="width: 50px; padding: 8px; text-align: center;"></th>
-                    </tr>
-                </thead>
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead><tr style="background:var(--bg3);">
+                    <th>Jumlah Palet</th><th>Tebal (mm)</th><th>Lebar (cm)</th><th>Panjang (cm)</th><th>SAP</th><th>Volume (m³)</th><th></th>
+                </tr></thead>
                 <tbody>
     `;
     window.paletRows.forEach((p, i) => {
         const volume = hitungVolumeBaris(p);
         html += `
-            <tr style="border-bottom: 1px solid var(--border);">
-                <td style="padding: 6px;"><input type="number" step="any" value="${p.jumlah}" oninput="window.onPaletInput(${i}, 'jumlah', this.value)" style="width:100%; background:var(--input-bg); border:1px solid var(--input-border); color:var(--input-color); padding: 6px; border-radius: var(--radius-sm); text-align: right;"></td>
-                <td style="padding: 6px;"><input type="number" step="any" value="${p.tebal}" oninput="window.onPaletInput(${i}, 'tebal', this.value)" style="width:100%; background:var(--input-bg); border:1px solid var(--input-border); color:var(--input-color); padding: 6px; border-radius: var(--radius-sm); text-align: right;"></td>
-                <td style="padding: 6px;"><input type="number" step="any" value="${p.lebar}" oninput="window.onPaletInput(${i}, 'lebar', this.value)" style="width:100%; background:var(--input-bg); border:1px solid var(--input-border); color:var(--input-color); padding: 6px; border-radius: var(--radius-sm); text-align: right;"></td>
-                <td style="padding: 6px;"><input type="number" step="any" value="${p.panjang}" oninput="window.onPaletInput(${i}, 'panjang', this.value)" style="width:100%; background:var(--input-bg); border:1px solid var(--input-border); color:var(--input-color); padding: 6px; border-radius: var(--radius-sm); text-align: right;"></td>
-                <td style="padding: 6px;"><input type="number" step="any" value="${p.sap}" oninput="window.onPaletInput(${i}, 'sap', this.value)" style="width:100%; background:var(--input-bg); border:1px solid var(--input-border); color:var(--input-color); padding: 6px; border-radius: var(--radius-sm); text-align: right;"></td>
-                <td style="padding: 6px; text-align: right; font-family: monospace;" id="palet-vol-${i}">${volume.toFixed(4)}</td>
-                <td style="padding: 6px; text-align: center;"><button class="btn btn-del btn-sm" onclick="window.removePaletRow(${i})" style="padding: 4px 8px;">✕</button></td>
+            <tr>
+                <td><input type="number" step="any" value="${p.jumlah}" oninput="window.onPaletInput(${i}, 'jumlah', this.value)" style="width:100%;"></td>
+                <td><input type="number" step="any" value="${p.tebal}" oninput="window.onPaletInput(${i}, 'tebal', this.value)" style="width:100%;"></td>
+                <td><input type="number" step="any" value="${p.lebar}" oninput="window.onPaletInput(${i}, 'lebar', this.value)" style="width:100%;"></td>
+                <td><input type="number" step="any" value="${p.panjang}" oninput="window.onPaletInput(${i}, 'panjang', this.value)" style="width:100%;"></td>
+                <td><input type="number" step="any" value="${p.sap}" oninput="window.onPaletInput(${i}, 'sap', this.value)" style="width:100%;"></td>
+                <td style="text-align:right;" id="palet-vol-${i}">${volume.toFixed(4)}</td>
+                <td style="text-align:center;"><button class="btn-del" onclick="window.removePaletRow(${i})">✕</button></td>
             </tr>
         `;
     });
-    html += `</tbody></table></div>`;
+    html += `</tbody>}</div>`;
     c.innerHTML = html;
 }
 
-// ========== BUKA FORM ==========
-window.openSawmillForm = function(item) {
-    sawmillEditId = item?.id || null;
-    window.paletRows = item ? JSON.parse(JSON.stringify(item.hasilPalet || [])) : [];
+// ========== BANGUN FORM SAWMILL (dinamis) ==========
+function buildSawmillForm() {
     const container = document.getElementById("sawmill-form-container");
+    if (!container) return;
+    // Hanya buat jika belum ada
+    if (container.querySelector("#p-tanggal")) return;
     container.innerHTML = `
-        <div class="form-title">${item ? "✏️ Edit" : "➕ Input"} Laporan Sawmill</div>
+        <div class="form-title" id="sawmill-form-title">➕ Input Laporan Sawmill</div>
         <div class="grid3">
-            <div class="field"><label>Tanggal *</label><input type="date" id="p-tanggal" style="width:100%;"></div>
-            <div class="field"><label>Proses Sawmill (m³)</label><input type="number" step="any" id="p-sawmill" oninput="updateTotalDanRendemen()" placeholder="Volume kayu" style="width:100%;"></div>
-            <div class="field"><label>Rendemen (%)</label><input type="number" step="any" id="p-randemen" readonly style="width:100%; background:var(--pill-bg);"></div>
+            <div class="field"><label>Tanggal *</label><input type="date" id="p-tanggal"></div>
+            <div class="field"><label>Proses Sawmill (m³)</label><input type="number" step="any" id="p-sawmill" oninput="updateTotalDanRendemen()" placeholder="Volume kayu"></div>
+            <div class="field"><label>Rendemen (%)</label><input type="number" step="any" id="p-randemen" readonly></div>
         </div>
-        <div class="section-head">🪵 Palet yang Dihasilkan (input jumlah palet, dimensi & total SAP)</div>
+        <div class="section-head">🪵 Palet yang Dihasilkan (jumlah hanya info, volume dari dimensi & SAP)</div>
         <div id="palet-container"></div>
-        <div class="flex gap10 items-center" style="margin-top: 12px;">
-            <button class="btn btn-secondary btn-sm" onclick="window.addPaletRow()" style="padding: 6px 12px;">+ Tambah Palet</button>
-            <div class="field" style="margin-left:auto; width: auto;"><label>Total Volume (m³)</label><input type="number" step="any" id="p-totalvolume" readonly style="width: 140px; background:var(--pill-bg);"></div>
+        <div class="flex gap10 items-center" style="margin-top:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="window.addPaletRow()">+ Tambah Palet</button>
+            <div class="field" style="margin-left:auto;width:150px;"><label>Total Volume (m³)</label><input type="number" step="any" id="p-totalvolume" readonly></div>
         </div>
         <div class="section-head">📝 Catatan Harian</div>
         <div class="grid3">
-            <div class="field"><label>Tenaga Masuk</label><input type="number" id="p-masuk" style="width:100%;"></div>
-            <div class="field"><label>Tidak Masuk</label><input type="number" id="p-tidakmasuk" style="width:100%;"></div>
-            <div class="field span3"><label>Catatan</label><textarea id="p-catatan" rows="2" style="width:100%;"></textarea></div>
+            <div class="field"><label>Tenaga Masuk</label><input type="number" id="p-masuk"></div>
+            <div class="field"><label>Tidak Masuk</label><input type="number" id="p-tidakmasuk"></div>
+            <div class="field span3"><label>Catatan</label><textarea id="p-catatan" rows="2"></textarea></div>
         </div>
         <div class="section-head">🔥 Oven</div>
         <div class="grid3">
-            <div class="field"><label>Chamber</label><select id="p-chamber" style="width:100%;">${[1,2,3,4,5,6,7].map(i => `<option value="${i}">Chamber ${i}</option>`).join("")}</select></div>
-            <div class="field"><label>Volume Oven (m³)</label><input type="number" step="any" id="p-volumeOven" style="width:100%;"></div>
-            <div class="field"><label>Tgl Mulai Oven</label><input type="date" id="p-tanggalOven" style="width:100%;"></div>
+            <div class="field"><label>Chamber</label><select id="p-chamber"><option value="">-- Pilih --</option>${[1,2,3,4,5,6,7].map(i => `<option value="${i}">Chamber ${i}</option>`).join("")}</select></div>
+            <div class="field"><label>Volume Oven (m³)</label><input type="number" step="any" id="p-volumeOven"></div>
+            <div class="field"><label>Tgl Mulai Oven</label><input type="date" id="p-tanggalOven"></div>
         </div>
         <div class="form-actions"><button class="btn btn-secondary" onclick="window.closeSawmillForm()">Batal</button><button class="btn btn-primary" onclick="window.saveSawmill()">Simpan Laporan</button></div>
     `;
-    document.getElementById("p-tanggal").value = item?.tanggal || today();
-    document.getElementById("p-sawmill").value = item?.prosesSawmill || "";
-    document.getElementById("p-masuk").value = item?.tenagaMasuk || "";
-    document.getElementById("p-tidakmasuk").value = item?.tenagaTidakMasuk || "";
-    document.getElementById("p-catatan").value = item?.catatan || "";
-    document.getElementById("p-chamber").value = item?.chamber || "";
-    document.getElementById("p-volumeOven").value = item?.volumeOven || "";
-    document.getElementById("p-tanggalOven").value = item?.tanggalOven || "";
+}
+
+window.openSawmillForm = function(item) {
+    sawmillEditId = item?.id || null;
+    window.paletRows = [];
+    buildSawmillForm(); // pastikan form ada
+    if (item) {
+        // Mode edit
+        window.paletRows = JSON.parse(JSON.stringify(item.hasilPalet || []));
+        document.getElementById("p-tanggal").value = item.tanggal;
+        document.getElementById("p-sawmill").value = item.prosesSawmill;
+        document.getElementById("p-masuk").value = item.tenagaMasuk;
+        document.getElementById("p-tidakmasuk").value = item.tenagaTidakMasuk;
+        document.getElementById("p-catatan").value = item.catatan;
+        document.getElementById("p-chamber").value = item.chamber;
+        document.getElementById("p-volumeOven").value = item.volumeOven;
+        document.getElementById("p-tanggalOven").value = item.tanggalOven;
+        document.getElementById("sawmill-form-title").textContent = "✏️ Edit Laporan Sawmill";
+    } else {
+        // Mode input baru
+        document.getElementById("p-tanggal").value = today();
+        document.getElementById("p-sawmill").value = "";
+        document.getElementById("p-masuk").value = "";
+        document.getElementById("p-tidakmasuk").value = "";
+        document.getElementById("p-catatan").value = "";
+        document.getElementById("p-chamber").value = "";
+        document.getElementById("p-volumeOven").value = "";
+        document.getElementById("p-tanggalOven").value = "";
+        document.getElementById("sawmill-form-title").textContent = "➕ Input Laporan Sawmill";
+    }
     renderPaletRows();
     updateTotalDanRendemen();
     document.getElementById("sawmill-input").classList.remove("hidden");
@@ -265,65 +280,149 @@ window.editSawmill = function(id) {
     if (item) window.openSawmillForm(item);
 };
 
-// ========== RENDER DAFTAR LAPORAN (dengan batas card jelas) ==========
+// ========== FILTER BULAN (sama dengan kayu.js, stabil) ==========
+function generateMonthOptions() {
+    const months = [];
+    const todayDate = new Date();
+    const thisMonth = todayDate.toISOString().slice(0,7);
+    months.push(`<option value="${thisMonth}">Bulan ini (${thisMonth})</option>`);
+    for (let i = 1; i <= 11; i++) {
+        const d = new Date(todayDate.getFullYear(), todayDate.getMonth() - i, 1);
+        const monthStr = d.toISOString().slice(0,7);
+        months.push(`<option value="${monthStr}">${monthStr}</option>`);
+    }
+    months.push(`<option value="all">Semua Bulan</option>`);
+    return months.join("");
+}
+
+function addMonthFilterToSawmill() {
+    const listContainer = document.getElementById("sawmill-list");
+    if (!listContainer) return;
+    if (document.getElementById("sawmill-filter-bulan")) return;
+    const filterDiv = document.createElement("div");
+    filterDiv.className = "flex gap10 items-center wrap";
+    filterDiv.style.marginBottom = "16px";
+    filterDiv.style.background = "var(--bg2)";
+    filterDiv.style.padding = "8px";
+    filterDiv.style.borderRadius = "var(--radius-sm)";
+    filterDiv.innerHTML = `
+        <div class="field" style="margin:0;">
+            <label style="font-size:10px;">Filter Bulan</label>
+            <select id="sawmill-filter-bulan" style="padding:6px; border-radius:var(--radius-sm); background:var(--input-bg); border:1px solid var(--border); color:var(--text);">
+                ${generateMonthOptions()}
+            </select>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="sawmill-apply-filter">🔍 Terapkan</button>
+    `;
+    listContainer.prepend(filterDiv);
+    const select = document.getElementById("sawmill-filter-bulan");
+    const apply = document.getElementById("sawmill-apply-filter");
+    const saved = localStorage.getItem('sawmill_filter_month');
+    if (saved && select.querySelector(`option[value="${saved}"]`)) select.value = saved;
+    else select.value = new Date().toISOString().slice(0,7);
+    const applyFilter = () => {
+        localStorage.setItem('sawmill_filter_month', select.value);
+        window.renderSawmill();
+    };
+    apply.onclick = applyFilter;
+    select.onchange = applyFilter;
+}
+
+function getFilteredSawmill() {
+    let bulan = localStorage.getItem('sawmill_filter_month') || new Date().toISOString().slice(0,7);
+    const select = document.getElementById("sawmill-filter-bulan");
+    if (select && select.value !== bulan) select.value = bulan;
+    if (bulan === 'all') return [...window.sawmillList];
+    return window.sawmillList.filter(s => s.tanggal && s.tanggal.startsWith(bulan));
+}
+
+// ========== RENDER DAFTAR LAPORAN (tidak mengganggu filter) ==========
 window.renderSawmill = function() {
-    const countEl = document.getElementById("sawmill-count");
-    if (countEl) countEl.textContent = sawmillList.length + " laporan";
     const container = document.getElementById("sawmill-list");
     if (!container) return;
-    if (!sawmillList.length) {
-        container.innerHTML = '<div class="empty">📭 Belum ada laporan</div>';
+    // Pastikan filter sudah ada
+    if (!document.getElementById("sawmill-filter-bulan")) addMonthFilterToSawmill();
+    
+    const filtered = sortByDateAsc(getFilteredSawmill());
+    const totalAll = window.sawmillList.length;
+    const countEl = document.getElementById("sawmill-count");
+    if (countEl) countEl.textContent = totalAll + " laporan (filter: " + filtered.length + " tampil)";
+    
+    // Hapus semua isi kecuali filter (filter adalah elemen pertama)
+    const filterDiv = document.getElementById("sawmill-filter-bulan")?.closest('.flex');
+    if (filterDiv) {
+        // Simpan filter, lalu kosongkan container
+        const filterClone = filterDiv.cloneNode(true);
+        container.innerHTML = '';
+        container.appendChild(filterClone);
+        // Re-attach event listeners
+        const newSelect = filterClone.querySelector("#sawmill-filter-bulan");
+        const newApply = filterClone.querySelector("#sawmill-apply-filter");
+        if (newApply) newApply.onclick = () => {
+            localStorage.setItem('sawmill_filter_month', newSelect.value);
+            window.renderSawmill();
+        };
+        if (newSelect) newSelect.onchange = () => {
+            localStorage.setItem('sawmill_filter_month', newSelect.value);
+            window.renderSawmill();
+        };
+    } else {
+        container.innerHTML = '';
+        addMonthFilterToSawmill();
+    }
+    
+    if (filtered.length === 0) {
+        container.insertAdjacentHTML('beforeend', '<div class="empty">📭 Tidak ada laporan sesuai filter</div>');
         return;
     }
-    const sorted = sortByDateAsc(window.sawmillList);
-    container.innerHTML = sorted.map(lap => {
+    let html = '';
+    filtered.forEach(lap => {
         const totalVol = lap.totalVolumePalet || 0;
-        const totalSap = lap.totalSap || (lap.hasilPalet ? lap.hasilPalet.reduce((s, p) => s + p.sap, 0) : 0);
-        const totalJumlahPalet = lap.totalPalet || (lap.hasilPalet ? lap.hasilPalet.reduce((s, p) => s + (p.jumlah || 0), 0) : 0);
+        const totalSap = lap.totalSap || (lap.hasilPalet ? lap.hasilPalet.reduce((s,p)=>s+p.sap,0) : 0);
+        const totalJumlahPalet = lap.totalPalet || (lap.hasilPalet ? lap.hasilPalet.reduce((s,p)=>s+(p.jumlah||0),0) : 0);
         const totalJenis = lap.hasilPalet ? lap.hasilPalet.length : 0;
         let detailTable = '';
         if (lap.hasilPalet && lap.hasilPalet.length) {
-            detailTable = `<div style="overflow-x: auto; margin-top: 12px;">
-                <table style="width:100%; font-size: 11px; border-collapse: collapse;">
-                    <thead><tr style="background: var(--bg3);"><th style="padding: 6px; text-align: left;">No</th><th style="padding: 6px; text-align: left;">Jml</th><th style="padding: 6px; text-align: left;">Tebal (mm)</th><th style="padding: 6px; text-align: left;">Lebar (cm)</th><th style="padding: 6px; text-align: left;">Panjang (cm)</th><th style="padding: 6px; text-align: left;">SAP</th><th style="padding: 6px; text-align: right;">Volume (m³)</th></tr></thead>
+            detailTable = `<div style="overflow-x:auto; margin-top:12px;">
+                <table style="width:100%; font-size:11px; border-collapse:collapse;">
+                    <thead><tr><th>No</th><th>Jml</th><th>Tebal (mm)</th><th>Lebar (cm)</th><th>Panjang (cm)</th><th>SAP</th><th>Volume (m³)</th></tr></thead>
                     <tbody>`;
             lap.hasilPalet.forEach((p, idx) => {
-                detailTable += `<tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 6px; text-align: center;">${idx+1}</td>
-                    <td style="padding: 6px; text-align: right;">${p.jumlah || 0}</td>
-                    <td style="padding: 6px; text-align: right;">${p.tebal}</td>
-                    <td style="padding: 6px; text-align: right;">${p.lebar}</td>
-                    <td style="padding: 6px; text-align: right;">${p.panjang}</td>
-                    <td style="padding: 6px; text-align: right;">${p.sap}</td>
-                    <td style="padding: 6px; text-align: right;">${p.volume.toFixed(4)}</td>
+                detailTable += `<tr>
+                    <td style="text-align:center;">${idx+1}</td>
+                    <td style="text-align:right;">${p.jumlah || 0}</td>
+                    <td style="text-align:right;">${p.tebal}</td>
+                    <td style="text-align:right;">${p.lebar}</td>
+                    <td style="text-align:right;">${p.panjang}</td>
+                    <td style="text-align:right;">${p.sap}</td>
+                    <td style="text-align:right;">${p.volume.toFixed(4)}</td>
                 </tr>`;
             });
             detailTable += `</tbody></table></div>`;
         }
-        return `<div class="laporan-card" style="margin-bottom: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg2);">
-            <div class="laporan-head" style="display: flex; justify-content: space-between; flex-wrap: wrap; padding: 12px; border-bottom: 1px solid var(--gold-dim);">
+        html += `<div class="laporan-card" style="margin-bottom:16px;">
+            <div class="laporan-head" style="display:flex; justify-content:space-between; flex-wrap:wrap;">
                 <div>
-                    <div class="laporan-title" style="font-weight: bold;">📅 ${fmtDate(lap.tanggal)}</div>
-                    <div class="laporan-sub" style="font-size: 11px; color: var(--muted);">${totalJenis} jenis · ${totalJumlahPalet} palet · Total Vol ${fmtDec(totalVol, 2)} m³ · Total SAP ${fmt(totalSap)} lbr</div>
+                    <div class="laporan-title">📅 ${fmtDate(lap.tanggal)}</div>
+                    <div class="laporan-sub">${totalJenis} jenis · ${totalJumlahPalet} palet · Total Vol ${fmtDec(totalVol,2)} m³ · Total SAP ${fmt(totalSap)} lbr</div>
                 </div>
                 <div class="flex gap4">
                     <button class="btn btn-edit btn-sm" onclick="window.editSawmill('${lap.id}')">✏️</button>
                     <button class="btn btn-del btn-sm" onclick="window.deleteSawmill('${lap.id}')">🗑️</button>
                 </div>
             </div>
-            <div class="stat-pills" style="padding: 8px 12px 0 12px;">
-                <div class="stat-pill"><span class="stat-label">Proses</span><span class="stat-val">${fmtDec(lap.prosesSawmill, 2)} m³</span></div>
-                <div class="stat-pill"><span class="stat-label">Rendemen</span><span class="stat-val">${fmtDec(lap.randemanSawmill, 2)}%</span></div>
+            <div class="stat-pills" style="margin-top:8px;">
+                <div class="stat-pill"><span>Proses</span> ${fmtDec(lap.prosesSawmill,2)} m³</div>
+                <div class="stat-pill"><span>Rendemen</span> ${fmtDec(lap.randemanSawmill,2)}%</div>
             </div>
-            <div style="padding: 0 12px 12px 12px;">
-                ${detailTable}
-                ${lap.catatan ? `<p style="margin-top: 8px; color: var(--muted); font-size: 11px;">📝 ${lap.catatan}</p>` : ''}
-            </div>
+            ${detailTable}
+            ${lap.catatan ? `<p style="margin-top:8px;">📝 ${lap.catatan}</p>` : ''}
         </div>`;
-    }).join("");
+    });
+    container.insertAdjacentHTML('beforeend', html);
 };
 
-// ========== RINGKASAN KUMULATIF PER BULAN ==========
+// ========== RINGKASAN BULANAN ==========
 function renderSawmillSummary() {
     const bulan = document.getElementById("sawmill-summary-bulan")?.value || thisMonth();
     const reports = window.sawmillList.filter(r => r.tanggal && r.tanggal.startsWith(bulan));
@@ -343,23 +442,23 @@ function renderSawmillSummary() {
         entry.volume += p.volume;
         entry.sap += p.sap;
         entry.jumlah += (p.jumlah || 0);
-        entry.count += 1;
+        entry.count++;
     });
-    const sortedTebal = Array.from(tebalMap.keys()).sort((a,b) => a - b);
+    const sortedTebal = Array.from(tebalMap.keys()).sort((a,b)=>a-b);
     let html = `
-        <div class="summary-row" style="margin-bottom: 20px;">
+        <div class="summary-row" style="margin-bottom:20px;">
             <div class="summary-card"><div class="summary-label">Total Laporan</div><div class="summary-value">${reports.length}</div></div>
-            <div class="summary-card"><div class="summary-label">Total Volume Palet</div><div class="summary-value">${fmtDec(allPalet.reduce((s,p)=>s+p.volume,0), 2)} m³</div></div>
+            <div class="summary-card"><div class="summary-label">Total Volume</div><div class="summary-value">${fmtDec(allPalet.reduce((s,p)=>s+p.volume,0),2)} m³</div></div>
             <div class="summary-card"><div class="summary-label">Total SAP</div><div class="summary-value">${fmt(allPalet.reduce((s,p)=>s+p.sap,0))} lembar</div></div>
-            <div class="summary-card"><div class="summary-label">Total Jumlah Palet</div><div class="summary-value">${fmt(allPalet.reduce((s,p)=>s+(p.jumlah||0),0))}</div></div>
+            <div class="summary-card"><div class="summary-label">Total Palet</div><div class="summary-value">${fmt(allPalet.reduce((s,p)=>s+(p.jumlah||0),0))}</div></div>
         </div>
-        <div style="overflow-x: auto;">
-            <table style="width:100%; border-collapse: collapse; font-size: 12px;">
-                <thead><tr style="background: var(--bg3);"><th style="padding: 8px; text-align: left;">Tebal (mm)</th><th style="padding: 8px; text-align: right;">Total Volume (m³)</th><th style="padding: 8px; text-align: right;">Total SAP</th><th style="padding: 8px; text-align: right;">Total Palet</th><th style="padding: 8px; text-align: center;">Jenis Dimensi</th></tr></thead>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead><tr><th>Tebal (mm)</th><th>Total Volume (m³)</th><th>Total SAP</th><th>Total Palet</th><th>Jenis Dimensi</th></tr></thead>
                 <tbody>
                     ${sortedTebal.map(tebal => {
-                        const data = tebalMap.get(tebal);
-                        return `<tr><td style="padding: 6px; text-align: right;">${tebal}</td><td style="padding: 6px; text-align: right;">${fmtDec(data.volume, 2)}</td><td style="padding: 6px; text-align: right;">${fmt(data.sap)}</td><td style="padding: 6px; text-align: right;">${fmt(data.jumlah)}</td><td style="padding: 6px; text-align: center;">${data.count}</td></tr>`;
+                        const d = tebalMap.get(tebal);
+                        return `<tr><td style="text-align:right;">${tebal}</td><td style="text-align:right;">${fmtDec(d.volume,2)}</td><td style="text-align:right;">${fmt(d.sap)}</td><td style="text-align:right;">${fmt(d.jumlah)}</td><td style="text-align:center;">${d.count}</td></tr>`;
                     }).join('')}
                 </tbody>
             </table>
@@ -368,39 +467,39 @@ function renderSawmillSummary() {
     container.innerHTML = html;
 }
 
-// ========== INISIALISASI PANEL RINGKASAN ==========
+// ========== INISIALISASI RINGKASAN ==========
 function initSawmillSummary() {
     const tabSawmill = document.getElementById("tab-sawmill");
     if (!tabSawmill) return;
     if (document.getElementById("sawmill-summary-panel")) return;
     const subtabContainer = tabSawmill.querySelector('.subtab-toggle');
-    if (subtabContainer) {
-        const btnSummary = document.createElement('button');
-        btnSummary.className = 'btn btn-secondary subtab-btn';
-        btnSummary.setAttribute('data-subtab', 'sawmill-summary-panel');
-        btnSummary.textContent = '📊 Rangkuman Bulanan';
-        btnSummary.onclick = () => {
+    if (subtabContainer && !subtabContainer.querySelector('[data-subtab="sawmill-summary-panel"]')) {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-secondary subtab-btn';
+        btn.setAttribute('data-subtab', 'sawmill-summary-panel');
+        btn.textContent = '📊 Rangkuman Bulanan';
+        btn.onclick = () => {
             document.querySelectorAll('#tab-sawmill .subtab-panel').forEach(p => p.classList.add('hidden'));
             document.getElementById('sawmill-summary-panel').classList.remove('hidden');
-            document.querySelectorAll('#tab-sawmill .subtab-btn').forEach(btn => {
-                btn.classList.remove('active', 'btn-primary');
-                btn.classList.add('btn-secondary');
+            document.querySelectorAll('#tab-sawmill .subtab-btn').forEach(b => {
+                b.classList.remove('active', 'btn-primary');
+                b.classList.add('btn-secondary');
             });
-            btnSummary.classList.add('active', 'btn-primary');
-            btnSummary.classList.remove('btn-secondary');
+            btn.classList.add('active', 'btn-primary');
+            btn.classList.remove('btn-secondary');
             renderSawmillSummary();
         };
-        subtabContainer.appendChild(btnSummary);
+        subtabContainer.appendChild(btn);
     }
     const summaryPanel = document.createElement('div');
     summaryPanel.id = 'sawmill-summary-panel';
     summaryPanel.className = 'subtab-panel hidden';
     summaryPanel.innerHTML = `
         <div class="form-card">
-            <div class="form-title">📊 Rangkuman Perolehan Palet per Bulan (Berdasarkan Tebal)</div>
+            <div class="form-title">📊 Rangkuman Perolehan Palet per Bulan</div>
             <div class="grid2">
                 <div class="field"><label>Bulan (YYYY-MM)</label><input type="month" id="sawmill-summary-bulan" value="${thisMonth()}"></div>
-                <div class="field"><button class="btn btn-primary" onclick="renderSawmillSummary()" style="margin-top: 22px;">Tampilkan</button></div>
+                <div class="field"><button class="btn btn-primary" onclick="renderSawmillSummary()">Tampilkan</button></div>
             </div>
             <div id="sawmill-summary-content"></div>
         </div>
@@ -410,6 +509,9 @@ function initSawmillSummary() {
     else tabSawmill.appendChild(summaryPanel);
 }
 
+// ========== START ==========
 setTimeout(() => {
     initSawmillSummary();
+    addMonthFilterToSawmill();
+    window.renderSawmill();
 }, 500);

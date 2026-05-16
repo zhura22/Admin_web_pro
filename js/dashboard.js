@@ -1,19 +1,39 @@
-// dashboard.js – lengkap dengan perbaikan rendemen sawmill
+// dashboard.js – lengkap dengan filter bulan untuk semua komponen
 
 window.renderDashboard = function() {
     const container = document.getElementById("dashboard-container");
     if (!container) return;
+
+    // Ambil bulan dari localStorage atau default bulan ini
+    let selectedMonth = localStorage.getItem('dashboard_month') || thisMonth();
+    const hashMatch = window.location.hash.match(/month=(\d{4}-\d{2})/);
+    if (hashMatch) selectedMonth = hashMatch[1];
+    
+    const bulanTampil = selectedMonth;
     const stok = hitungStokRealtime();
+
+    // Data hari ini
     const totalKayuHariIni = kayuList.filter(x => x.tanggal === today()).reduce((s,x) => s + (parseFloat(x.volume)||0), 0);
     const totalProduksiHariIni = produksiList.filter(x => x.tanggal === today()).reduce((s,p) => s + ((p.shift1?.planerBagus||0)+(p.shift2?.planerBagus||0)), 0);
     const totalPenjualanHariIni = penjualanList.filter(x => x.tanggal === today()).reduce((s,x) => s + (parseFloat(x.volume)||0), 0);
     const totalTenagaHadir = produksiList.filter(x => x.tanggal === today()).reduce((s,p) => s + ((p.shift1?.masuk||0)+(p.shift2?.masuk||0)), 0);
     
-    const bulanIni = thisMonth();
-    const totalPenjualanBulanIni = penjualanList.filter(p => p.tanggal?.startsWith(bulanIni)).reduce((s, p) => s + ((p.volume || 0) - (p.retur || 0)), 0);
+    const totalPenjualanBulan = penjualanList.filter(p => p.tanggal?.startsWith(bulanTampil)).reduce((s, p) => s + ((p.volume || 0) - (p.retur || 0)), 0);
     
     container.innerHTML = `
-        <div class="panel-head"><div><h2 class="panel-title">🏠 Dashboard</h2><p class="panel-sub">Ringkasan Hari Ini</p></div></div>
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">🏠 Dashboard</h2>
+                <p class="panel-sub">Ringkasan Hari Ini</p>
+            </div>
+            <div class="flex gap10 items-center">
+                <div class="field" style="margin:0;">
+                    <label style="font-size:10px;">Bulan Laporan</label>
+                    <input type="month" id="dashboard-month" value="${bulanTampil}" style="padding:6px; border-radius:var(--radius-sm); background:var(--input-bg); border:1px solid var(--border); color:var(--text);">
+                </div>
+                <button class="btn btn-secondary btn-sm" id="refresh-dashboard-btn" style="margin-top:16px;">📅 Tampilkan</button>
+            </div>
+        </div>
         <div class="summary-row">
             <div class="summary-card"><div class="summary-label">📥 Kayu Masuk Hari Ini</div><div class="summary-value">${fmtDec(totalKayuHariIni,2)} m³</div></div>
             <div class="summary-card"><div class="summary-label">📦 Produksi Hari Ini</div><div class="summary-value">${fmtDec(totalProduksiHariIni,2)} m³</div></div>
@@ -22,8 +42,9 @@ window.renderDashboard = function() {
         </div>
         <div class="summary-row">
             <div class="summary-card" style="grid-column: span 4; text-align: center; background: var(--gold-dim); border-color: var(--gold);">
-                <div class="summary-label" style="font-size: 12px;">📊 KUMULATIF PENJUALAN BOARD BULAN INI (NETTO)</div>
-                <div class="summary-value" style="font-size: 32px; color: var(--gold);">${fmtDec(totalPenjualanBulanIni, 2)} m³</div>
+                <div class="summary-label" style="font-size: 12px;">📊 KUMULATIF PENJUALAN BOARD (NETTO)</div>
+                <div class="summary-value" style="font-size: 32px; color: var(--gold);" id="dashboard-penjualan-bulan">${fmtDec(totalPenjualanBulan, 2)} m³</div>
+                <div style="font-size:10px;">Bulan: ${bulanTampil}</div>
             </div>
         </div>
         <div class="rekap-stats">
@@ -32,20 +53,64 @@ window.renderDashboard = function() {
             <div class="stat-card"><div class="stat-card-label">✅ Stok Palet Kering</div><div class="stat-card-value">${fmtDec(stok.stokKering,2)} m³</div></div>
             <div class="stat-card"><div class="stat-card-label">📦 Stok Board</div><div class="stat-card-value">${fmtDec(stok.stokBoard,2)} m³</div></div>
         </div>
-        <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">📊 Persentase Pencapaian Target Bulan Ini</h2><p class="panel-sub">Target berdasarkan hari kerja (Senin-Sabtu), hari aktif sebagai informasi</p></div>
+        <div class="panel-head" style="margin-top:20px;">
+            <h2 class="panel-title">📊 Persentase Pencapaian Target Bulan Ini</h2>
+            <p class="panel-sub" id="target-subtitle"></p>
+        </div>
         <div id="achievement-stats" class="rekap-stats"></div>
         <div class="flex gap10" style="margin-top:16px;">
             <button class="btn btn-primary" onclick="switchTab('kayu')">➕ Input Kayu</button>
             <button class="btn btn-primary" onclick="switchTab('produksi')">➕ Input Produksi</button>
         </div>
+        <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">🎯 Target Hari Ini</h2></div>
+        <div id="target-capaian-container" class="rekap-stats"></div>
+        
+        <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">📊 Target vs Realisasi (Kumulatif Bulan Ini)</h2></div>
+        <div class="chart-vertical" id="target-charts-container">
+            <canvas id="chart-target-kayu" height="200"></canvas>
+            <canvas id="chart-target-sawmill" height="200"></canvas>
+            <canvas id="chart-target-planer" height="200"></canvas>
+            <canvas id="chart-target-ripsaw" height="200"></canvas>
+            <canvas id="chart-target-seri" height="200"></canvas>
+            <canvas id="chart-target-press" height="200"></canvas>
+            <canvas id="chart-target-sezing" height="200"></canvas>
+        </div>
+        
+        <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">📈 Tren 30 Hari Terakhir</h2></div>
+        <div class="chart-vertical">
+            <canvas id="chart-rendemen" height="200"></canvas>
+            <canvas id="chart-produksi" height="200"></canvas>
+            <canvas id="chart-stok" height="200"></canvas>
+            <canvas id="chart-penjualan" height="200"></canvas>
+        </div>
     `;
+
+    // Pasang event listener untuk filter bulan
+    const monthPicker = document.getElementById("dashboard-month");
+    const refreshBtn = document.getElementById("refresh-dashboard-btn");
+    if (monthPicker && refreshBtn) {
+        const updateDashboardByMonth = () => {
+            const newMonth = monthPicker.value;
+            localStorage.setItem('dashboard_month', newMonth);
+            // Update penjualan bulan
+            const penjualanNew = penjualanList.filter(p => p.tanggal?.startsWith(newMonth)).reduce((s, p) => s + ((p.volume || 0) - (p.retur || 0)), 0);
+            document.getElementById("dashboard-penjualan-bulan").innerHTML = fmtDec(penjualanNew, 2);
+            document.querySelector("#dashboard-penjualan-bulan").parentElement.querySelector("div:last-child").innerHTML = `Bulan: ${newMonth}`;
+            renderAchievementCards(newMonth);
+            renderAllTargetChartsForMonth(newMonth);
+        };
+        refreshBtn.onclick = updateDashboardByMonth;
+        monthPicker.addEventListener('change', updateDashboardByMonth);
+    }
+    
     renderTargetCapaian();
     renderCharts();
-    renderAllTargetCharts();
-    renderAchievementCards();
+    renderAllTargetChartsForMonth(bulanTampil);
+    renderAchievementCards(bulanTampil);
     checkAlerts();
 };
 
+// ========== STOK REALTIME ==========
 function hitungStokRealtime() {
     const totalKayuMasuk = kayuList.reduce((s, x) => s + (parseFloat(x.volume) || 0), 0);
     const totalProsesSawmill = sawmillList.reduce((s, x) => s + (parseFloat(x.prosesSawmill) || 0), 0);
@@ -66,6 +131,7 @@ function hitungStokRealtime() {
     return { stokLog, stokBasah, stokKering, stokBoard };
 }
 
+// ========== TARGET HARIAN ==========
 function renderTargetCapaian() {
     const container = document.getElementById("target-capaian-container");
     if (!container) return;
@@ -84,6 +150,7 @@ function renderTargetCapaian() {
     `;
 }
 
+// ========== GRAFIK TREN 30 HARI ==========
 function renderCharts() {
     const labels = [];
     const rendemenData = [];
@@ -128,30 +195,38 @@ function renderCharts() {
     if (ctxJ) window.myChartPenjualan = new Chart(ctxJ, { type: 'bar', data: { labels, datasets: [{ label: 'Penjualan (m³)', data: penjualanData, backgroundColor: '#f87171' }] }, options: { responsive: true } });
 }
 
-function renderAllTargetCharts() {
-    renderChartTarget('kayu', 'Kayu Masuk', kayuList, 'volume', window.appSettings.targetKayuHarian || 30, 'stokAwalKayu');
-    renderChartTarget('sawmill', 'Proses Sawmill', sawmillList, 'prosesSawmill', window.appSettings.targetSawmillHarian || 25, 0);
-    renderChartTarget('planer', 'Planer Bagus', produksiList, (item) => (item.shift1?.planerBagus||0)+(item.shift2?.planerBagus||0), window.appSettings.targetPlaner || 12, 0);
-    renderChartTarget('ripsaw', 'Ripsaw Input', produksiList, (item) => (item.shift1?.ripsawIn||0)+(item.shift2?.ripsawIn||0), window.appSettings.targetRipsaw || 13, 0);
-    renderChartTarget('seri', 'Seri Hasil', produksiList, (item) => (item.shift1?.seri||0)+(item.shift2?.seri||0), window.appSettings.targetSeri || 700, 0);
-    renderChartTarget('press', 'Press Hasil', produksiList, (item) => (item.shift1?.press||0)+(item.shift2?.press||0), window.appSettings.targetPress || 700, 0);
-    renderChartTarget('sezing', 'Sezing', sezingList, 'volume', window.appSettings.targetSezingHarian || 15, 0);
+// ========== GRAFIK TARGET UNTUK BULAN TERTENTU ==========
+function renderAllTargetChartsForMonth(month) {
+    const [year, monthNum] = month.split('-');
+    const startDate = `${year}-${monthNum}-01`;
+    const lastDate = new Date(parseInt(year), parseInt(monthNum), 0).getDate();
+    const endDate = `${year}-${monthNum}-${lastDate}`;
+    const todayStr = today();
+    const finalEndDate = (month === thisMonth()) ? todayStr : endDate;
+    
+    renderChartTargetForDateRange('kayu', 'Kayu Masuk', kayuList, 'volume', window.appSettings.targetKayuHarian || 30, startDate, finalEndDate, 'stokAwalKayu');
+    renderChartTargetForDateRange('sawmill', 'Proses Sawmill', sawmillList, 'prosesSawmill', window.appSettings.targetSawmillHarian || 25, startDate, finalEndDate, 0);
+    renderChartTargetForDateRange('planer', 'Planer Bagus', produksiList, (item) => (item.shift1?.planerBagus||0)+(item.shift2?.planerBagus||0), window.appSettings.targetPlaner || 12, startDate, finalEndDate, 0);
+    renderChartTargetForDateRange('ripsaw', 'Ripsaw Input', produksiList, (item) => (item.shift1?.ripsawIn||0)+(item.shift2?.ripsawIn||0), window.appSettings.targetRipsaw || 13, startDate, finalEndDate, 0);
+    renderChartTargetForDateRange('seri', 'Seri Hasil', produksiList, (item) => (item.shift1?.seri||0)+(item.shift2?.seri||0), window.appSettings.targetSeri || 700, startDate, finalEndDate, 0);
+    renderChartTargetForDateRange('press', 'Press Hasil', produksiList, (item) => (item.shift1?.press||0)+(item.shift2?.press||0), window.appSettings.targetPress || 700, startDate, finalEndDate, 0);
+    renderChartTargetForDateRange('sezing', 'Sezing', sezingList, 'volume', window.appSettings.targetSezingHarian || 15, startDate, finalEndDate, 0);
 }
 
-function renderChartTarget(id, label, dataList, valueField, targetHarian, stokAwalField = 0) {
+function renderChartTargetForDateRange(id, label, dataList, valueField, targetHarian, startDate, endDate, stokAwalField = 0) {
     const canvas = document.getElementById(`chart-target-${id}`);
     if (!canvas) return;
 
     const stokAwal = (typeof stokAwalField === 'string') ? (window.appSettings[stokAwalField] || 0) : stokAwalField;
-    const todayDate = new Date();
-    const startOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+    
     const dates = [];
-    let current = new Date(startOfMonth);
-    while (current <= todayDate) {
+    let current = new Date(startDate);
+    const end = new Date(endDate);
+    while (current <= end) {
         dates.push(current.toISOString().split('T')[0]);
         current.setDate(current.getDate() + 1);
     }
-
+    
     let targetKumulatif = [];
     let realisasiKumulatif = [];
     let akumulasiTarget = 0;
@@ -219,20 +294,23 @@ function renderChartTarget(id, label, dataList, valueField, targetHarian, stokAw
     });
 }
 
-// ========== CARD PENCAPAIAN (rendemen sawmill diperbaiki) ==========
-function renderAchievementCards() {
+// ========== CARD PENCAPAIAN (ACHIEVEMENT) ==========
+function renderAchievementCards(bulan) {
     const container = document.getElementById("achievement-stats");
     if (!container) return;
     
-    const todayDate = new Date();
-    const startOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+    const [year, month] = bulan.split('-');
+    const startOfMonth = new Date(parseInt(year), parseInt(month)-1, 1);
+    const endOfMonth = new Date(parseInt(year), parseInt(month), 0);
     const bulanIni = startOfMonth.toISOString().split('T')[0];
     const todayStr = today();
+    const endDate = (bulan === thisMonth()) ? todayStr : endOfMonth.toISOString().split('T')[0];
     
-    // Hitung hari kerja kalender (Senin-Sabtu)
+    // Hitung hari kerja dalam bulan yang dipilih (Senin-Sabtu)
     let workingDays = 0;
     let current = new Date(startOfMonth);
-    while (current <= todayDate) {
+    const limitDate = (bulan === thisMonth()) ? new Date(todayStr) : endOfMonth;
+    while (current <= limitDate) {
         if (current.getDay() !== 0) workingDays++;
         current.setDate(current.getDate() + 1);
     }
@@ -240,7 +318,7 @@ function renderAchievementCards() {
     function countActiveDays(dataList) {
         const days = new Set();
         dataList.forEach(item => {
-            if (item.tanggal && item.tanggal >= bulanIni && item.tanggal <= todayStr) {
+            if (item.tanggal && item.tanggal >= bulanIni && item.tanggal <= endDate) {
                 days.add(item.tanggal);
             }
         });
@@ -248,13 +326,13 @@ function renderAchievementCards() {
     }
     
     const categories = [
-        { id: 'kayu', label: 'Kayu Masuk', dataList: kayuList, valueField: 'volume', targetSetting: 'targetKayuHarian', stokAwal: window.appSettings.stokAwalKayu || 0, targetLabel: 'Target/hari', unit: 'm³' },
-        { id: 'sawmill', label: 'Proses Sawmill', dataList: sawmillList, valueField: 'prosesSawmill', targetSetting: 'targetSawmillHarian', stokAwal: 0, targetLabel: 'Target/hari', unit: 'm³' },
-        { id: 'planer', label: 'Planer Bagus', dataList: produksiList, valueField: (item) => (item.shift1?.planerBagus||0)+(item.shift2?.planerBagus||0), targetSetting: 'targetPlaner', stokAwal: 0, targetLabel: 'Target/hari', unit: 'm³' },
-        { id: 'ripsaw', label: 'Ripsaw Input', dataList: produksiList, valueField: (item) => (item.shift1?.ripsawIn||0)+(item.shift2?.ripsawIn||0), targetSetting: 'targetRipsaw', stokAwal: 0, targetLabel: 'Target/hari', unit: 'm³' },
-        { id: 'seri', label: 'Seri Hasil', dataList: produksiList, valueField: (item) => (item.shift1?.seri||0)+(item.shift2?.seri||0), targetSetting: 'targetSeri', stokAwal: 0, targetLabel: 'Target/hari', unit: 'lbr' },
-        { id: 'press', label: 'Press Hasil', dataList: produksiList, valueField: (item) => (item.shift1?.press||0)+(item.shift2?.press||0), targetSetting: 'targetPress', stokAwal: 0, targetLabel: 'Target/hari', unit: 'lbr' },
-        { id: 'sezing', label: 'Sezing', dataList: sezingList, valueField: 'volume', targetSetting: 'targetSezingHarian', stokAwal: 0, targetLabel: 'Target/hari', unit: 'm³' }
+        { id: 'kayu', label: 'Kayu Masuk', dataList: kayuList, valueField: 'volume', targetSetting: 'targetKayuHarian', stokAwal: window.appSettings.stokAwalKayu || 0, unit: 'm³' },
+        { id: 'sawmill', label: 'Proses Sawmill', dataList: sawmillList, valueField: 'prosesSawmill', targetSetting: 'targetSawmillHarian', stokAwal: 0, unit: 'm³' },
+        { id: 'planer', label: 'Planer Bagus', dataList: produksiList, valueField: (item) => (item.shift1?.planerBagus||0)+(item.shift2?.planerBagus||0), targetSetting: 'targetPlaner', stokAwal: 0, unit: 'm³' },
+        { id: 'ripsaw', label: 'Ripsaw Input', dataList: produksiList, valueField: (item) => (item.shift1?.ripsawIn||0)+(item.shift2?.ripsawIn||0), targetSetting: 'targetRipsaw', stokAwal: 0, unit: 'm³' },
+        { id: 'seri', label: 'Seri Hasil', dataList: produksiList, valueField: (item) => (item.shift1?.seri||0)+(item.shift2?.seri||0), targetSetting: 'targetSeri', stokAwal: 0, unit: 'lbr' },
+        { id: 'press', label: 'Press Hasil', dataList: produksiList, valueField: (item) => (item.shift1?.press||0)+(item.shift2?.press||0), targetSetting: 'targetPress', stokAwal: 0, unit: 'lbr' },
+        { id: 'sezing', label: 'Sezing', dataList: sezingList, valueField: 'volume', targetSetting: 'targetSezingHarian', stokAwal: 0, unit: 'm³' }
     ];
     
     const targetHarianMap = {
@@ -267,14 +345,12 @@ function renderAchievementCards() {
         targetSezingHarian: window.appSettings.targetSezingHarian || 15
     };
     
-    // === PERBAIKIAN RENDEMEN SAWMILL ===
-    // Hitung total proses dan output palet dari data sawmill (bukan dari kayu masuk)
-    const totalProsesSawmillBulanIni = sawmillList.filter(s => s.tanggal && s.tanggal >= bulanIni && s.tanggal <= todayStr).reduce((s, lap) => s + (lap.prosesSawmill || 0), 0);
-    const totalPaletBasahBulanIni = sawmillList.filter(s => s.tanggal && s.tanggal >= bulanIni && s.tanggal <= todayStr).reduce((s, lap) => s + (lap.totalVolumePalet || 0), 0);
-    const rendemenSawmill = totalProsesSawmillBulanIni > 0 ? (totalPaletBasahBulanIni / totalProsesSawmillBulanIni * 100) : 0;
+    // Rendemen sawmill berdasarkan bulan yang dipilih
+    const totalProsesSawmillBulan = sawmillList.filter(s => s.tanggal && s.tanggal >= bulanIni && s.tanggal <= endDate).reduce((s, lap) => s + (lap.prosesSawmill || 0), 0);
+    const totalPaletBasahBulan = sawmillList.filter(s => s.tanggal && s.tanggal >= bulanIni && s.tanggal <= endDate).reduce((s, lap) => s + (lap.totalVolumePalet || 0), 0);
+    const rendemenSawmill = totalProsesSawmillBulan > 0 ? (totalPaletBasahBulan / totalProsesSawmillBulan * 100) : 0;
     const targetRendemenMin = window.appSettings.rendemenMin || 65;
     const rendemenColor = rendemenSawmill >= targetRendemenMin ? 'var(--green)' : 'var(--orange)';
-    
     const activeDaysSawmill = countActiveDays(sawmillList);
     
     let cardsHtml = [];
@@ -284,9 +360,9 @@ function renderAchievementCards() {
         const totalTarget = targetPerHari * workingDays;
         let totalRealisasi = 0;
         if (typeof cat.valueField === 'function') {
-            totalRealisasi = cat.dataList.filter(item => item.tanggal && item.tanggal >= bulanIni && item.tanggal <= todayStr).reduce((sum, item) => sum + cat.valueField(item), 0);
+            totalRealisasi = cat.dataList.filter(item => item.tanggal && item.tanggal >= bulanIni && item.tanggal <= endDate).reduce((sum, item) => sum + cat.valueField(item), 0);
         } else {
-            totalRealisasi = cat.dataList.filter(item => item.tanggal && item.tanggal >= bulanIni && item.tanggal <= todayStr).reduce((sum, item) => sum + (parseFloat(item[cat.valueField]) || 0), 0);
+            totalRealisasi = cat.dataList.filter(item => item.tanggal && item.tanggal >= bulanIni && item.tanggal <= endDate).reduce((sum, item) => sum + (parseFloat(item[cat.valueField]) || 0), 0);
         }
         if (cat.stokAwal && cat.id === 'kayu') totalRealisasi += cat.stokAwal;
         const persen = totalTarget > 0 ? (totalRealisasi / totalTarget) * 100 : 0;
@@ -304,12 +380,11 @@ function renderAchievementCards() {
                     <div style="font-size:10px; margin-top:4px;">${statusIcon} ${statusText}</div>
                 </div>
                 <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--gold-dim); font-size: 9px; color: var(--muted);">
-                    📆 Target: ${workingDays} hari kerja | Aktif: ${activeDays} hari | ${cat.targetLabel}: ${targetPerHari} ${cat.unit}
+                    📆 Target: ${workingDays} hari kerja | Aktif: ${activeDays} hari | Target/hari: ${targetPerHari} ${cat.unit}
                 </div>
             </div>
         `);
         
-        // Tambahkan card rendemen setelah card sawmill
         if (cat.id === 'sawmill') {
             cardsHtml.push(`
                 <div class="stat-card" style="text-align:center; display: flex; flex-direction: column; justify-content: space-between;">
@@ -321,11 +396,12 @@ function renderAchievementCards() {
                         <div style="font-size:10px; margin-top:4px;">${rendemenSawmill >= targetRendemenMin ? '✅ Memenuhi target' : '⚠️ Di bawah target'}</div>
                     </div>
                     <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--gold-dim); font-size: 9px; color: var(--muted);">
-                        📆 Aktif: ${activeDaysSawmill} hari | ${fmtDec(totalProsesSawmillBulanIni, 1)} m³ proses → ${fmtDec(totalPaletBasahBulanIni, 1)} m³ palet
+                        📆 Aktif: ${activeDaysSawmill} hari | ${fmtDec(totalProsesSawmillBulan, 1)} m³ proses → ${fmtDec(totalPaletBasahBulan, 1)} m³ palet
                     </div>
                 </div>
             `);
         }
     }
     container.innerHTML = cardsHtml.join('');
+    document.getElementById("target-subtitle").innerHTML = `Bulan: ${bulan} · Target berdasarkan hari kerja (Senin-Sabtu)`;
 }

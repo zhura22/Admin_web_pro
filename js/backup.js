@@ -1,4 +1,4 @@
-// backup.js - Export/Import data dengan tampilan ringkas
+// backup.js - Export/Import Data (FULLY FIXED)
 
 // ======================== EKSPOR JSON LENGKAP ========================
 window.exportFullData = function() {
@@ -30,21 +30,29 @@ window.exportFullData = function() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        toast('✅ Backup lengkap (JSON) berhasil');
+        toast('✅ Backup JSON lengkap berhasil');
         logActivity('Export', 'Backup', 'Full data JSON');
     } catch (e) {
         console.error(e);
-        toast('❌ Gagal ekspor: ' + e.message);
+        toast('❌ Gagal ekspor JSON: ' + e.message);
     }
 };
 
+// ======================== IMPOR JSON LENGKAP ========================
 window.importFullData = function(file) {
-    if (!file) return;
+    if (!file) {
+        toast('⚠️ Tidak ada file yang dipilih');
+        return;
+    }
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
             const imported = JSON.parse(e.target.result);
-            if (!imported.version || !imported.kayuList) throw new Error('Format file tidak valid');
+            // Validasi minimal
+            if (!imported.version || !imported.kayuList) {
+                throw new Error('File bukan backup yang valid (versi atau kayuList tidak ditemukan)');
+            }
+            // Restore semua data
             window.kayuList = imported.kayuList || [];
             window.sawmillList = imported.sawmillList || [];
             window.ovenList = imported.ovenList || [];
@@ -58,35 +66,58 @@ window.importFullData = function(file) {
             window.appUsers = imported.appUsers || [];
             window.activityLog = imported.activityLog || [];
             window.appSettings = imported.appSettings || {};
-            // Pastikan oven 7 chamber
+
+            // Pastikan ovenList memiliki 7 chamber
             if (!window.ovenList || window.ovenList.length === 0) {
                 window.ovenList = [];
-                for (let i = 1; i <= 7; i++) window.ovenList.push({ chamber: i, volume: 0, tanggalMulai: "", status: "empty" });
+                for (let i = 1; i <= 7; i++) {
+                    window.ovenList.push({ chamber: i, volume: 0, tanggalMulai: "", status: "empty" });
+                }
             } else {
-                const existing = window.ovenList.map(o => o.chamber);
-                for (let i = 1; i <= 7; i++) if (!existing.includes(i)) window.ovenList.push({ chamber: i, volume: 0, tanggalMulai: "", status: "empty" });
+                const existingChambers = window.ovenList.map(o => o.chamber);
+                for (let i = 1; i <= 7; i++) {
+                    if (!existingChambers.includes(i)) {
+                        window.ovenList.push({ chamber: i, volume: 0, tanggalMulai: "", status: "empty" });
+                    }
+                }
                 window.ovenList.sort((a, b) => a.chamber - b.chamber);
             }
+
+            // Simpan ke localStorage
             persistAll();
-            if (typeof renderAll === 'function') renderAll();
-            else location.reload();
+
+            // Render ulang seluruh antarmuka
+            if (typeof renderAll === 'function') {
+                renderAll();
+            } else {
+                // Force reload jika renderAll tidak ada
+                location.reload();
+            }
             toast('✅ Restore data berhasil! Halaman akan dimuat ulang.');
             logActivity('Import', 'Backup', 'Full data JSON');
+            // Reload untuk memastikan konsistensi
             setTimeout(() => location.reload(), 1500);
         } catch (err) {
-            toast('❌ Gagal import: ' + err.message);
+            console.error(err);
+            toast('❌ Gagal import JSON: ' + err.message);
         }
+    };
+    reader.onerror = function() {
+        toast('❌ Gagal membaca file');
     };
     reader.readAsText(file);
 };
 
-// ======================== EKSPOR / IMPOR EXCEL (tetap tersedia) ========================
+// ======================== EKSPOR / IMPOR EXCEL ========================
 function ensureSheetJS(callback) {
-    if (typeof XLSX !== 'undefined') { callback(); return; }
+    if (typeof XLSX !== 'undefined') {
+        callback();
+        return;
+    }
     const script = document.createElement('script');
     script.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
     script.onload = () => callback();
-    script.onerror = () => toast('❌ Gagal memuat SheetJS');
+    script.onerror = () => toast('❌ Gagal memuat SheetJS, cek koneksi internet');
     document.head.appendChild(script);
 }
 
@@ -95,91 +126,171 @@ window.exportToExcel = function() {
         try {
             const workbook = XLSX.utils.book_new();
             const sheets = {
-                'Kayu': (window.kayuList || []).map(x => ({ 'Tanggal': x.tanggal, 'No Nota': x.noNota, 'Suplier': x.suplier, 'Volume (m³)': x.volume, 'Harga (Rp)': x.harga })),
-                'Sawmill': (window.sawmillList || []).map(s => ({ 'Tanggal': s.tanggal, 'Proses (m³)': s.prosesSawmill, 'Rendemen (%)': s.randemanSawmill, 'Total Palet (m³)': s.totalVolumePalet })),
-                'Produksi': (window.produksiList || []).map(p => ({ 'Tanggal': p.tanggal, 'Batch': p.openNo, 'Planer Bagus': (p.shift1?.planerBagus||0)+(p.shift2?.planerBagus||0), 'Limbah': p.limbah })),
-                'Penjualan': (window.penjualanList || []).map(p => ({ 'Tanggal': p.tanggal, 'Volume (m³)': p.volume, 'Retur (m³)': p.retur })),
-                'Order': (window.orderList || []).map(o => ({ 'Tanggal': o.tanggal, 'Kode PO': o.kodePO, 'Volume (m³)': o.volumeOrder }))
+                'Kayu': (window.kayuList || []).map(x => ({
+                    'Tanggal': x.tanggal, 'No Nota': x.noNota, 'Suplier': x.suplier,
+                    'Volume (m³)': x.volume, 'Harga (Rp)': x.harga
+                })),
+                'Sawmill': (window.sawmillList || []).map(s => ({
+                    'Tanggal': s.tanggal, 'Proses (m³)': s.prosesSawmill,
+                    'Rendemen (%)': s.randemanSawmill, 'Total Palet (m³)': s.totalVolumePalet
+                })),
+                'Produksi': (window.produksiList || []).map(p => ({
+                    'Tanggal': p.tanggal, 'Batch': p.openNo,
+                    'Planer Bagus': (p.shift1?.planerBagus||0)+(p.shift2?.planerBagus||0),
+                    'Limbah': p.limbah
+                })),
+                'Penjualan': (window.penjualanList || []).map(p => ({
+                    'Tanggal': p.tanggal, 'Volume (m³)': p.volume, 'Retur (m³)': p.retur
+                })),
+                'Order': (window.orderList || []).map(o => ({
+                    'Tanggal': o.tanggal, 'Kode PO': o.kodePO, 'Volume (m³)': o.volumeOrder
+                }))
             };
             for (const [sheetName, data] of Object.entries(sheets)) {
-                if (data.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data), sheetName);
+                if (data.length) {
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    XLSX.utils.book_append_sheet(workbook, ws, sheetName);
+                }
             }
             XLSX.writeFile(workbook, `data_produksi_${today()}.xlsx`);
             toast('✅ Export Excel berhasil');
-        } catch(e) { toast('❌ Gagal: ' + e.message); }
+        } catch(e) {
+            console.error(e);
+            toast('❌ Gagal export Excel: ' + e.message);
+        }
     });
 };
 
 window.importFromExcel = function(file) {
-    if (!file) return;
+    if (!file) {
+        toast('⚠️ Tidak ada file Excel dipilih');
+        return;
+    }
     ensureSheetJS(() => {
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
-                const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-                function getSheet(name) { return XLSX.utils.sheet_to_json(workbook.Sheets[name]) || []; }
-                // Contoh impor: hanya menambah data (tidak menghapus)
-                getSheet('Kayu').forEach(row => {
-                    if (row['Tanggal'] && row['No Nota']) window.kayuList.push({ id: uid(), tanggal: row['Tanggal'], noNota: row['No Nota'], suplier: row['Suplier'] || '', volume: parseFloat(row['Volume (m³)']) || 0, harga: parseFloat(row['Harga (Rp)']) || 0 });
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const getSheet = (name) => {
+                    const sheet = workbook.Sheets[name];
+                    return sheet ? XLSX.utils.sheet_to_json(sheet) : [];
+                };
+                // Impor Kayu (contoh, hanya menambah data baru)
+                const kayuData = getSheet('Kayu');
+                kayuData.forEach(row => {
+                    if (row['Tanggal'] && row['No Nota']) {
+                        window.kayuList.push({
+                            id: uid(),
+                            tanggal: row['Tanggal'],
+                            noNota: row['No Nota'],
+                            suplier: row['Suplier'] || '',
+                            volume: parseFloat(row['Volume (m³)']) || 0,
+                            harga: parseFloat(row['Harga (Rp)']) || 0,
+                            jumlahBatang: 0,
+                            noTruk: '',
+                            asal: '',
+                            jenis: 'glondong',
+                            grade: 'bagus'
+                        });
+                    }
                 });
+                // Anda dapat menambahkan impor untuk sheet lain jika perlu
                 persistAll();
-                toast('✅ Import Excel selesai (data ditambahkan)');
-                location.reload();
-            } catch(err) { toast('❌ Gagal: ' + err.message); }
+                toast('✅ Import Excel selesai (data ditambahkan). Refresh halaman.');
+                logActivity('Import', 'Excel', 'Tambah data dari Excel');
+                setTimeout(() => location.reload(), 1500);
+            } catch(err) {
+                console.error(err);
+                toast('❌ Gagal import Excel: ' + err.message);
+            }
         };
+        reader.onerror = () => toast('❌ Gagal membaca file Excel');
         reader.readAsArrayBuffer(file);
     });
 };
 
-// ======================== TAMPILAN RINGKAS (HANYA 2 BARIS) ========================
-function addBackupButtons() {
+// ======================== TAMPILAN RINGKAS (TOMbol PASTI BERFUNGSI) ========================
+function initBackupUI() {
     const exportPanel = document.getElementById('tab-export');
     if (!exportPanel) return;
     const formCard = exportPanel.querySelector('.form-card');
     if (!formCard) return;
-    if (document.getElementById('backup-group')) return;
+    if (document.getElementById('backup-group')) return; // sudah ada
 
-    const container = document.createElement('div');
-    container.id = 'backup-group';
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = '12px';
-    container.style.marginTop = '10px';
+    const groupDiv = document.createElement('div');
+    groupDiv.id = 'backup-group';
+    groupDiv.style.display = 'flex';
+    groupDiv.style.flexDirection = 'column';
+    groupDiv.style.gap = '12px';
+    groupDiv.style.marginTop = '10px';
+    groupDiv.style.alignItems = 'center';
 
-    // Baris 1: Backup/Restore JSON (rekomendasi)
+    // Baris 1: Backup & Restore JSON
     const jsonRow = document.createElement('div');
     jsonRow.style.display = 'flex';
-    jsonRow.style.gap = '10px';
+    jsonRow.style.gap = '12px';
+    jsonRow.style.flexWrap = 'wrap';
     jsonRow.style.justifyContent = 'center';
     jsonRow.innerHTML = `
-        <button class="btn btn-primary" id="json-export-btn" style="min-width:140px">💾 Backup Lengkap (JSON)</button>
-        <label class="btn btn-secondary" style="cursor:pointer; min-width:140px">📂 Restore Data
+        <button id="json-export-btn" class="btn btn-primary" style="min-width:160px">💾 Backup Lengkap (JSON)</button>
+        <label id="json-import-label" class="btn btn-secondary" style="cursor:pointer; min-width:160px; text-align:center">📂 Restore Data
             <input type="file" id="json-import-file" accept=".json" style="display:none">
         </label>
     `;
 
-    // Baris 2: Export/Import Excel (opsional)
+    // Baris 2: Export & Import Excel
     const excelRow = document.createElement('div');
     excelRow.style.display = 'flex';
-    excelRow.style.gap = '10px';
+    excelRow.style.gap = '12px';
+    excelRow.style.flexWrap = 'wrap';
     excelRow.style.justifyContent = 'center';
+    excelRow.style.alignItems = 'center';
     excelRow.innerHTML = `
-        <button class="btn btn-secondary btn-sm" id="excel-export-btn" style="min-width:120px">📎 Export Excel</button>
-        <label class="btn btn-secondary btn-sm" style="cursor:pointer; min-width:120px">📂 Import Excel
+        <button id="excel-export-btn" class="btn btn-secondary btn-sm" style="min-width:130px">📎 Export Excel</button>
+        <label id="excel-import-label" class="btn btn-secondary btn-sm" style="cursor:pointer; min-width:130px; text-align:center">📂 Import Excel
             <input type="file" id="excel-import-file" accept=".xlsx, .xls" style="display:none">
         </label>
         <span style="font-size:10px; color:var(--muted);">⚠️ Import Excel hanya menambah data</span>
     `;
 
-    container.appendChild(jsonRow);
-    container.appendChild(excelRow);
-    formCard.appendChild(container);
+    groupDiv.appendChild(jsonRow);
+    groupDiv.appendChild(excelRow);
+    formCard.appendChild(groupDiv);
 
-    // Event handlers
-    document.getElementById('json-export-btn').onclick = () => window.exportFullData();
-    document.getElementById('json-import-file').onchange = (e) => { if(e.target.files[0]) window.importFullData(e.target.files[0]); e.target.value = ''; };
-    document.getElementById('excel-export-btn').onclick = () => window.exportToExcel();
-    document.getElementById('excel-import-file').onchange = (e) => { if(e.target.files[0]) window.importFromExcel(e.target.files[0]); e.target.value = ''; };
+    // Pasang event listener (tidak menggunakan onclick agar lebih aman)
+    const jsonExportBtn = document.getElementById('json-export-btn');
+    if (jsonExportBtn) jsonExportBtn.addEventListener('click', () => window.exportFullData());
+
+    const jsonImportFile = document.getElementById('json-import-file');
+    if (jsonImportFile) {
+        jsonImportFile.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                window.importFullData(e.target.files[0]);
+            }
+            e.target.value = ''; // reset
+        });
+    }
+
+    const excelExportBtn = document.getElementById('excel-export-btn');
+    if (excelExportBtn) excelExportBtn.addEventListener('click', () => window.exportToExcel());
+
+    const excelImportFile = document.getElementById('excel-import-file');
+    if (excelImportFile) {
+        excelImportFile.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                window.importFromExcel(e.target.files[0]);
+            }
+            e.target.value = '';
+        });
+    }
 }
 
-setTimeout(addBackupButtons, 1000);
+// Jalankan setelah DOM siap dan juga setelah tab mungkin dirender ulang
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBackupUI);
+} else {
+    initBackupUI();
+}
+// Panggil lagi setelah beberapa saat karena tab mungkin dibuat dinamis
+setTimeout(initBackupUI, 1000);
