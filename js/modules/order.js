@@ -1,133 +1,655 @@
-// order.js - perbaikan bug "}" dan tata letak rapi
+// order.js - Versi Enhanced: Tracker Pemenuhan Order
+// Fitur baru: deadline, prioritas, status otomatis, progress bar,
+//             filter/search, summary cards, panel detail pengiriman
 
 let orderEditId = null;
+let orderDetailId = null;
+let orderFilterStatus = 'semua';
+let orderSearchQuery = '';
 
-// Hitung volume terkirim bersih (volume - retur)
+// ─────────────────────────────────────────────
+// HELPER: Hitung volume terkirim bersih (netto)
+// ─────────────────────────────────────────────
 window.getOrderTerpenuhi = function(orderId) {
-    return window.penjualanList.filter(p => p.orderId === orderId).reduce((s, p) => {
-        const netto = (parseFloat(p.volume) || 0) - (parseFloat(p.retur) || 0);
-        return s + netto;
-    }, 0);
+    return (window.penjualanList || [])
+        .filter(p => p.orderId === orderId)
+        .reduce((s, p) => s + ((parseFloat(p.volume) || 0) - (parseFloat(p.retur) || 0)), 0);
 };
 
-// Ambil stok board terbaru untuk suatu orderId (dari boardStockList)
+// Ambil stok board terbaru untuk suatu orderId
 function getLatestStockByOrderId(orderId) {
     const stocks = (window.boardStockList || []).filter(s => s.orderId === orderId);
-    if (stocks.length === 0) return 0;
-    const sorted = [...stocks].sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
-    return sorted[0].stok || 0;
+    if (!stocks.length) return 0;
+    return [...stocks].sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''))[0].stok || 0;
 }
 
-// Render tabel daftar order
-window.renderOrder = function() {
-    const container = document.getElementById("order-list");
-    if (!container) return;
+// ─────────────────────────────────────────────
+// HELPER: Tentukan status order
+// ─────────────────────────────────────────────
+function getOrderStatus(order) {
+    const terkirim = window.getOrderTerpenuhi(order.id);
+    const stokBoard = getLatestStockByOrderId(order.id);
+    const sisa = Math.max(0, order.volumeOrder - stokBoard - terkirim);
+    const persen = order.volumeOrder > 0 ? (terkirim / order.volumeOrder) * 100 : 0;
+    const todayStr = today();
+    const terlambat = order.deadline && order.deadline < todayStr && sisa > 0;
+    const mendesak = order.deadline && !terlambat && sisa > 0 &&
+        diffDaysOrder(todayStr, order.deadline) <= 7;
 
-    if (!window.orderList || !window.orderList.length) {
-        container.innerHTML = '<div class="empty-state">📭 Belum ada order. Klik "+ Order Baru" untuk menambahkan.</div>';
-        document.getElementById("order-count").textContent = "0 order";
-        return;
+    let status, statusClass, statusIcon;
+    if (sisa <= 0) {
+        status = 'Selesai'; statusClass = 'os-selesai'; statusIcon = '✅';
+    } else if (terlambat) {
+        status = 'Terlambat'; statusClass = 'os-terlambat'; statusIcon = '🔴';
+    } else if (mendesak) {
+        status = 'Mendesak'; statusClass = 'os-mendesak'; statusIcon = '🟠';
+    } else if (terkirim > 0) {
+        status = 'Sebagian'; statusClass = 'os-sebagian'; statusIcon = '🔵';
+    } else {
+        status = 'Pending'; statusClass = 'os-pending'; statusIcon = '⚪';
     }
 
-    document.getElementById("order-count").textContent = window.orderList.length + " order";
-    const sorted = sortByDateAsc(window.orderList);
+    return { terkirim, stokBoard, sisa, persen, status, statusClass, statusIcon, terlambat, mendesak };
+}
+
+function diffDaysOrder(d1, d2) {
+    return Math.ceil((new Date(d2) - new Date(d1)) / 86400000);
+}
+
+// ─────────────────────────────────────────────
+// CSS inject (dipanggil sekali saat init)
+// ─────────────────────────────────────────────
+function injectOrderStyles() {
+    if (document.getElementById('order-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'order-styles';
+    style.textContent = `
+        /* ── Order Summary Cards ── */
+        .order-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+        .osc {
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            text-align: center;
+            transition: transform .15s;
+            cursor: pointer;
+        }
+        .osc:hover { transform: translateY(-2px); }
+        .osc.active { border-color: var(--gold); background: var(--gold-dim); }
+        .osc-val { font-size: 26px; font-weight: 700; line-height: 1; }
+        .osc-lbl { font-size: 10px; color: var(--muted); margin-top: 4px; }
+        .osc-val.c-green  { color: var(--green); }
+        .osc-val.c-gold   { color: var(--gold); }
+        .osc-val.c-orange { color: var(--orange); }
+        .osc-val.c-red    { color: #f87171; }
+        .osc-val.c-blue   { color: #60a5fa; }
+        .osc-val.c-muted  { color: var(--muted); }
+
+        /* ── Filter & Search Bar ── */
+        .order-toolbar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .order-toolbar input[type=text] {
+            flex: 1; min-width: 160px;
+            padding: 7px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--input-bg);
+            color: var(--text);
+            font-size: 13px;
+        }
+        .order-filter-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+        .ofbtn {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            background: var(--bg3);
+            color: var(--muted);
+            cursor: pointer;
+            transition: all .15s;
+        }
+        .ofbtn:hover  { border-color: var(--gold); color: var(--gold); }
+        .ofbtn.active { background: var(--gold); color: #111; border-color: var(--gold); }
+
+        /* ── Order Status Badges ── */
+        .os-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .os-selesai  { background: #16a34a22; color: var(--green); border: 1px solid #16a34a55; }
+        .os-terlambat{ background: #ef444422; color: #f87171;     border: 1px solid #ef444455; }
+        .os-mendesak { background: #f9731622; color: var(--orange);border: 1px solid #f9731655; }
+        .os-sebagian { background: #3b82f622; color: #60a5fa;     border: 1px solid #3b82f655; }
+        .os-pending  { background: #6b728022; color: var(--muted); border: 1px solid #6b728055; }
+
+        /* ── Prioritas Badge ── */
+        .prio-urgent { display:inline-block; padding:2px 7px; border-radius:10px;
+            font-size:10px; font-weight:700; background:#ef444420;
+            color:#f87171; border:1px solid #ef444450; margin-left:4px; }
+        .prio-normal { display:none; }
+
+        /* ── Progress Bar ── */
+        .order-progress-wrap {
+            width: 100%; min-width: 80px;
+            background: var(--bg3);
+            border-radius: 6px;
+            height: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .order-progress-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width .4s ease;
+        }
+        .order-progress-label {
+            font-size: 10px;
+            color: var(--muted);
+            text-align: right;
+            margin-top: 2px;
+        }
+
+        /* ── Table ── */
+        .order-tbl-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+        .order-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .order-tbl thead tr { background: var(--bg3); border-bottom: 2px solid var(--gold-dim); }
+        .order-tbl th { padding: 10px 12px; text-align: left; font-size: 11px;
+            text-transform: uppercase; letter-spacing: .05em; color: var(--muted); white-space: nowrap; }
+        .order-tbl th.r { text-align: right; }
+        .order-tbl td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .order-tbl td.r { text-align: right; }
+        .order-tbl tbody tr:last-child td { border-bottom: none; }
+        .order-tbl tbody tr:hover { background: var(--gold-dim) !important; }
+        .order-tbl tbody tr.row-terlambat { background: #ef444408; }
+        .order-tbl tbody tr.row-mendesak  { background: #f9731608; }
+
+        .order-po { font-weight: 700; color: var(--gold); font-family: monospace; font-size: 13px; }
+        .order-company { font-size: 13px; color: var(--text); }
+        .order-date { font-size: 12px; color: var(--muted); }
+        .deadline-normal { font-size: 11px; color: var(--muted); }
+        .deadline-soon   { font-size: 11px; color: var(--orange); font-weight: 600; }
+        .deadline-over   { font-size: 11px; color: #f87171; font-weight: 700; }
+        .no-deadline     { font-size: 11px; color: var(--muted); font-style: italic; }
+
+        .sisa-ok   { color: var(--green); font-weight: 600; }
+        .sisa-warn { color: var(--orange); font-weight: 600; }
+        .sisa-crit { color: #f87171; font-weight: 700; }
+
+        /* ── Detail Panel ── */
+        .order-detail-panel {
+            background: var(--bg3);
+            border: 1px solid var(--gold-dim);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 18px;
+            animation: slideDown .2s ease;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .detail-title { font-size: 15px; font-weight: 700; color: var(--gold); }
+        .detail-meta  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .detail-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .dstat { background: var(--bg2, var(--bg)); border: 1px solid var(--border);
+            border-radius: 8px; padding: 10px; text-align: center; }
+        .dstat-val { font-size: 20px; font-weight: 700; }
+        .dstat-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+        .detail-progress {
+            background: var(--border);
+            border-radius: 8px; height: 12px;
+            overflow: hidden; margin-bottom: 14px;
+        }
+        .detail-progress-fill {
+            height: 100%; border-radius: 8px;
+            transition: width .5s ease;
+        }
+        .detail-shipments-title {
+            font-size: 12px; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: .08em;
+            margin-bottom: 8px;
+        }
+        .shipment-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            margin-bottom: 6px;
+            font-size: 12px;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .shipment-date { color: var(--muted); }
+        .shipment-vol  { color: var(--green); font-weight: 700; }
+        .shipment-retur { color: #f87171; }
+        .shipment-truck { color: var(--muted); font-style: italic; }
+        .no-shipment { text-align: center; color: var(--muted); padding: 16px;
+            font-size: 13px; font-style: italic; }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            .order-tbl th:nth-child(6),
+            .order-tbl td:nth-child(6) { display: none; }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// ─────────────────────────────────────────────
+// RENDER UTAMA
+// ─────────────────────────────────────────────
+window.renderOrder = function() {
+    injectOrderStyles();
+    const container = document.getElementById('order-list');
+    if (!container) return;
+
+    const orders = window.orderList || [];
+
+    // ── Hitung data setiap order ──
+    const enriched = orders.map(o => ({ o, ...getOrderStatus(o) }));
+
+    // ── Summary counts ──
+    const total     = enriched.length;
+    const selesai   = enriched.filter(x => x.status === 'Selesai').length;
+    const sebagian  = enriched.filter(x => x.status === 'Sebagian').length;
+    const mendesak  = enriched.filter(x => x.status === 'Mendesak').length;
+    const terlambat = enriched.filter(x => x.status === 'Terlambat').length;
+    const pending   = enriched.filter(x => x.status === 'Pending').length;
+
+    document.getElementById('order-count').textContent = total + ' order';
+
+    // ── Filter & Search ──
+    let filtered = enriched;
+    if (orderFilterStatus !== 'semua') {
+        filtered = filtered.filter(x => x.status.toLowerCase() === orderFilterStatus);
+    }
+    if (orderSearchQuery) {
+        const q = orderSearchQuery.toLowerCase();
+        filtered = filtered.filter(x =>
+            x.o.kodePO.toLowerCase().includes(q) ||
+            x.o.perusahaan.toLowerCase().includes(q)
+        );
+    }
+
+    // ── Urutkan: terlambat → mendesak → sebagian → pending → selesai ──
+    const order_rank = { Terlambat:0, Mendesak:1, Sebagian:2, Pending:3, Selesai:4 };
+    filtered.sort((a, b) => (order_rank[a.status] || 0) - (order_rank[b.status] || 0)
+        || (a.o.deadline || 'z').localeCompare(b.o.deadline || 'z'));
+
+    // ─────────────────────────
+    // Render HTML
+    // ─────────────────────────
     let html = `
-        <div class="table-wrapper">
-            <table class="order-table" style="width:100%; border-collapse: collapse;">
+        <!-- Summary Cards -->
+        <div class="order-summary-grid">
+            <div class="osc ${orderFilterStatus==='semua'?'active':''}" onclick="setOrderFilter('semua')">
+                <div class="osc-val c-gold">${total}</div>
+                <div class="osc-lbl">Total Order</div>
+            </div>
+            <div class="osc ${orderFilterStatus==='selesai'?'active':''}" onclick="setOrderFilter('selesai')">
+                <div class="osc-val c-green">${selesai}</div>
+                <div class="osc-lbl">✅ Selesai</div>
+            </div>
+            <div class="osc ${orderFilterStatus==='sebagian'?'active':''}" onclick="setOrderFilter('sebagian')">
+                <div class="osc-val c-blue">${sebagian}</div>
+                <div class="osc-lbl">🔵 Sebagian</div>
+            </div>
+            <div class="osc ${orderFilterStatus==='mendesak'?'active':''}" onclick="setOrderFilter('mendesak')">
+                <div class="osc-val c-orange">${mendesak}</div>
+                <div class="osc-lbl">🟠 Mendesak</div>
+            </div>
+            <div class="osc ${orderFilterStatus==='terlambat'?'active':''}" onclick="setOrderFilter('terlambat')">
+                <div class="osc-val c-red">${terlambat}</div>
+                <div class="osc-lbl">🔴 Terlambat</div>
+            </div>
+            <div class="osc ${orderFilterStatus==='pending'?'active':''}" onclick="setOrderFilter('pending')">
+                <div class="osc-val c-muted">${pending}</div>
+                <div class="osc-lbl">⚪ Pending</div>
+            </div>
+        </div>
+
+        <!-- Search & Filter Toolbar -->
+        <div class="order-toolbar">
+            <input type="text" id="order-search-input"
+                placeholder="🔍 Cari kode PO atau perusahaan..."
+                value="${escapeHtml(orderSearchQuery)}"
+                oninput="onOrderSearch(this.value)">
+        </div>
+    `;
+
+    // ── Detail Panel (jika ada yang dibuka) ──
+    if (orderDetailId) {
+        const found = enriched.find(x => x.o.id === orderDetailId);
+        if (found) html += renderDetailPanel(found);
+    }
+
+    if (!filtered.length) {
+        html += `<div class="empty-state" style="padding:40px; text-align:center; color:var(--muted);">
+            📭 Tidak ada order yang sesuai filter.
+        </div>`;
+    } else {
+        html += `
+        <div class="order-tbl-wrap">
+            <table class="order-tbl">
                 <thead>
-                    <tr style="background: var(--bg3); border-bottom: 2px solid var(--gold-dim);">
-                        <th style="padding: 10px; text-align: center;">No</th>
-                        <th style="padding: 10px; text-align: left;">Tanggal</th>
-                        <th style="padding: 10px; text-align: left;">Kode PO</th>
-                        <th style="padding: 10px; text-align: left;">Perusahaan</th>
-                        <th style="padding: 10px; text-align: right;">Volume (m³)</th>
-                        <th style="padding: 10px; text-align: right;">Stok Board (m³)</th>
-                        <th style="padding: 10px; text-align: right;">Terkirim (m³)</th>
-                        <th style="padding: 10px; text-align: right;">Sisa (m³)</th>
-                        <th style="padding: 10px; text-align: center;">Status</th>
-                        <th style="padding: 10px; text-align: center;">Aksi</th>
+                    <tr>
+                        <th>Kode PO</th>
+                        <th>Perusahaan</th>
+                        <th>Tgl / Deadline</th>
+                        <th class="r">Volume (m³)</th>
+                        <th>Progress</th>
+                        <th class="r">Sisa (m³)</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
-    `;
-    sorted.forEach((o, i) => {
-        const terkirim = window.getOrderTerpenuhi(o.id);
-        const stokBoard = getLatestStockByOrderId(o.id);
-        let sisa = o.volumeOrder - stokBoard - terkirim;
-        if (sisa < 0) sisa = 0;
-        const statusClass = sisa <= 0 ? 'status-badge success' : 'status-badge warning';
-        const statusText = sisa <= 0 ? '✅ Selesai' : '📦 Proses';
-        const rowStyle = i % 2 === 0 ? 'background: var(--row-even);' : 'background: var(--bg3);';
-        html += `
-            <tr style="${rowStyle} border-bottom: 1px solid var(--border);">
-                <td style="padding: 8px; text-align: center;">${i+1}</td>
-                <td style="padding: 8px; text-align: left;">${fmtDate(o.tanggal)}</td>
-                <td style="padding: 8px; text-align: left; font-weight: bold; color: var(--gold);">${escapeHtml(o.kodePO)}</td>
-                <td style="padding: 8px; text-align: left;">${escapeHtml(o.perusahaan)}</td>
-                <td style="padding: 8px; text-align: right;">${fmtDec(o.volumeOrder, 2)}</td>
-                <td style="padding: 8px; text-align: right;">${fmtDec(stokBoard, 2)}</td>
-                <td style="padding: 8px; text-align: right;">${fmtDec(terkirim, 2)}</td>
-                <td style="padding: 8px; text-align: right; color: ${sisa > 0 ? 'var(--orange)' : 'var(--green)'};">${fmtDec(sisa, 2)}</td>
-                <td style="padding: 8px; text-align: center;"><span class="${statusClass}">${statusText}</span></td>
-                <td style="padding: 8px; text-align: center;">
-                    <button class="btn-icon edit" onclick="window.editOrder('${o.id}')" title="Edit">✏️</button>
-                    <button class="btn-icon delete" onclick="window.deleteOrder('${o.id}')" title="Hapus">🗑️</button>
-                </td>
-            </tr>
         `;
-    });
-    html += `</tbody></table></div>`;
+
+        filtered.forEach(({ o, terkirim, sisa, persen, status, statusClass, statusIcon, terlambat, mendesak, stokBoard }) => {
+            const rowClass = terlambat ? 'row-terlambat' : (mendesak ? 'row-mendesak' : '');
+            const progressColor = sisa <= 0 ? '#22c55e' : (terlambat ? '#f87171' : (mendesak ? '#f97316' : '#d4a017'));
+            const sisaClass = sisa <= 0 ? 'sisa-ok' : (terlambat ? 'sisa-crit' : 'sisa-warn');
+
+            // Deadline label
+            let deadlineHtml = '<span class="no-deadline">—</span>';
+            if (o.deadline) {
+                const daysLeft = diffDaysOrder(today(), o.deadline);
+                if (terlambat) {
+                    deadlineHtml = `<span class="deadline-over">📅 ${fmtDate(o.deadline)}<br>⚠️ Lewat ${Math.abs(daysLeft)} hari</span>`;
+                } else if (mendesak) {
+                    deadlineHtml = `<span class="deadline-soon">📅 ${fmtDate(o.deadline)}<br>⏰ ${daysLeft} hari lagi</span>`;
+                } else {
+                    deadlineHtml = `<span class="deadline-normal">📅 ${fmtDate(o.deadline)}</span>`;
+                }
+            }
+
+            const prioHtml = o.prioritas === 'urgent'
+                ? `<span class="prio-urgent">URGENT</span>` : '';
+
+            html += `
+                <tr class="${rowClass}" style="cursor:pointer;" onclick="toggleOrderDetail('${o.id}')">
+                    <td>
+                        <div class="order-po">${escapeHtml(o.kodePO)}${prioHtml}</div>
+                    </td>
+                    <td><div class="order-company">${escapeHtml(o.perusahaan)}</div>
+                        <div class="order-date">${fmtDate(o.tanggal)}</div>
+                    </td>
+                    <td>${deadlineHtml}</td>
+                    <td class="r">${fmtDec(o.volumeOrder, 2)}</td>
+                    <td>
+                        <div class="order-progress-wrap">
+                            <div class="order-progress-fill"
+                                style="width:${Math.min(persen,100).toFixed(1)}%; background:${progressColor};"></div>
+                        </div>
+                        <div class="order-progress-label">${persen.toFixed(1)}%</div>
+                    </td>
+                    <td class="r"><span class="${sisaClass}">${fmtDec(sisa, 2)}</span></td>
+                    <td><span class="os-badge ${statusClass}">${statusIcon} ${status}</span></td>
+                    <td onclick="event.stopPropagation()">
+                        <button class="btn-icon edit" onclick="window.editOrder('${o.id}')" title="Edit">✏️</button>
+                        <button class="btn-icon delete" onclick="window.deleteOrder('${o.id}')" title="Hapus">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table></div>`;
+    }
+
     container.innerHTML = html;
 };
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
+// ─────────────────────────────────────────────
+// DETAIL PANEL — Riwayat Pengiriman per Order
+// ─────────────────────────────────────────────
+function renderDetailPanel({ o, terkirim, sisa, persen, stokBoard, status, statusClass, statusIcon }) {
+    const shipments = (window.penjualanList || [])
+        .filter(p => p.orderId === o.id)
+        .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+
+    const progressColor = sisa <= 0 ? '#22c55e'
+        : (status === 'Terlambat' ? '#f87171'
+        : (status === 'Mendesak'  ? '#f97316' : '#d4a017'));
+
+    let shipmentsHtml = '';
+    if (!shipments.length) {
+        shipmentsHtml = `<div class="no-shipment">Belum ada pengiriman untuk order ini.</div>`;
+    } else {
+        shipments.forEach((p, i) => {
+            const netto = (p.volume || 0) - (p.retur || 0);
+            const returHtml = p.retur > 0
+                ? `<span class="shipment-retur"> (Retur: ${fmtDec(p.retur,2)} m³)</span>` : '';
+            shipmentsHtml += `
+                <div class="shipment-item">
+                    <span class="shipment-date">#${i+1} · ${fmtDate(p.tanggal)}</span>
+                    <span><span class="shipment-vol">+${fmtDec(netto,2)} m³</span>${returHtml}</span>
+                    <span class="shipment-truck">🚛 ${escapeHtml(p.noTruk||'—')} → ${escapeHtml(p.tujuan||'—')}</span>
+                </div>
+            `;
+        });
+    }
+
+    const deadlineInfo = o.deadline
+        ? `Deadline: <strong>${fmtDate(o.deadline)}</strong>`
+        : 'Deadline: <em>tidak ditentukan</em>';
+
+    const catatanInfo = o.catatan
+        ? `<div style="margin-top:6px; font-size:11px; color:var(--muted);">📝 ${escapeHtml(o.catatan)}</div>` : '';
+
+    return `
+        <div class="order-detail-panel">
+            <div class="detail-header">
+                <div>
+                    <div class="detail-title">📦 ${escapeHtml(o.kodePO)} — ${escapeHtml(o.perusahaan)}</div>
+                    <div class="detail-meta">${deadlineInfo} &nbsp;|&nbsp; <span class="os-badge ${statusClass}">${statusIcon} ${status}</span></div>
+                    ${catatanInfo}
+                </div>
+                <button class="btn btn-sm btn-secondary" onclick="toggleOrderDetail('${o.id}')">✖ Tutup</button>
+            </div>
+
+            <div class="detail-stats">
+                <div class="dstat">
+                    <div class="dstat-val" style="color:var(--gold);">${fmtDec(o.volumeOrder,2)}</div>
+                    <div class="dstat-lbl">Volume Order (m³)</div>
+                </div>
+                <div class="dstat">
+                    <div class="dstat-val" style="color:#22c55e;">${fmtDec(terkirim,2)}</div>
+                    <div class="dstat-lbl">Sudah Terkirim (m³)</div>
+                </div>
+                <div class="dstat">
+                    <div class="dstat-val" style="color:#60a5fa;">${fmtDec(stokBoard,2)}</div>
+                    <div class="dstat-lbl">Stok Board (m³)</div>
+                </div>
+                <div class="dstat">
+                    <div class="dstat-val" style="color:${sisa>0?'#f97316':'#22c55e'};">${fmtDec(sisa,2)}</div>
+                    <div class="dstat-lbl">Sisa Belum Kirim (m³)</div>
+                </div>
+                <div class="dstat">
+                    <div class="dstat-val" style="color:var(--gold);">${persen.toFixed(1)}%</div>
+                    <div class="dstat-lbl">Pemenuhan</div>
+                </div>
+                <div class="dstat">
+                    <div class="dstat-val">${shipments.length}</div>
+                    <div class="dstat-lbl">Pengiriman</div>
+                </div>
+            </div>
+
+            <div class="detail-progress">
+                <div class="detail-progress-fill"
+                    style="width:${Math.min(persen,100).toFixed(1)}%; background:${progressColor};"></div>
+            </div>
+
+            <div class="detail-shipments-title">🚛 Riwayat Pengiriman</div>
+            ${shipmentsHtml}
+        </div>
+    `;
 }
 
-// Update ringkasan (tidak digunakan, tapi dipanggil dari luar)
-window.updateAllOrderSummaries = function() {
-    if (typeof renderBoardStockSummary === 'function') renderBoardStockSummary();
+// ─────────────────────────────────────────────
+// EVENT HANDLERS
+// ─────────────────────────────────────────────
+window.toggleOrderDetail = function(id) {
+    orderDetailId = (orderDetailId === id) ? null : id;
+    window.renderOrder();
 };
 
-// Form edit/tambah order
+window.setOrderFilter = function(status) {
+    orderFilterStatus = status;
+    window.renderOrder();
+};
+
+window.onOrderSearch = function(val) {
+    orderSearchQuery = val;
+    window.renderOrder();
+};
+
+// ─────────────────────────────────────────────
+// FORM: Buka / Tutup / Simpan
+// ─────────────────────────────────────────────
 window.openOrderForm = function(item) {
     orderEditId = item?.id || null;
-    document.getElementById("order-tanggal").value = item?.tanggal || today();
-    document.getElementById("order-po").value = item?.kodePO || "";
-    document.getElementById("order-perusahaan").value = item?.perusahaan || "";
-    document.getElementById("order-volume").value = item?.volumeOrder || "";
-    document.getElementById("order-input").classList.remove("hidden");
-    document.getElementById("order-list").classList.add("hidden");
+    document.getElementById('order-tanggal').value   = item?.tanggal      || today();
+    document.getElementById('order-po').value        = item?.kodePO       || '';
+    document.getElementById('order-perusahaan').value= item?.perusahaan   || '';
+    document.getElementById('order-volume').value    = item?.volumeOrder  || '';
+
+    // Field baru — tambahkan ke HTML form jika belum ada
+    ensureExtraOrderFields();
+
+    document.getElementById('order-deadline').value  = item?.deadline     || '';
+    document.getElementById('order-prioritas').value = item?.prioritas    || 'normal';
+    document.getElementById('order-catatan').value   = item?.catatan      || '';
+
+    document.getElementById('order-input').classList.remove('hidden');
+    document.getElementById('order-list').classList.add('hidden');
 };
 
 window.closeOrderForm = function() {
-    document.getElementById("order-input").classList.add("hidden");
-    document.getElementById("order-list").classList.remove("hidden");
+    document.getElementById('order-input').classList.add('hidden');
+    document.getElementById('order-list').classList.remove('hidden');
     orderEditId = null;
 };
 
+// Tambahkan field baru ke form yang sudah ada di HTML (sekali saja)
+function ensureExtraOrderFields() {
+    if (document.getElementById('order-deadline')) return;
+    const formCard = document.getElementById('order-form');
+    if (!formCard) return;
+
+    // Cari grid form yang sudah ada (grid2)
+    const grid = formCard.querySelector('.grid2');
+    if (grid) {
+        // Tambah field deadline
+        const dlField = document.createElement('div');
+        dlField.className = 'field';
+        dlField.innerHTML = `<label>Deadline Pengiriman</label><input type="date" id="order-deadline">`;
+        grid.appendChild(dlField);
+
+        // Tambah field prioritas
+        const prioField = document.createElement('div');
+        prioField.className = 'field';
+        prioField.innerHTML = `<label>Prioritas</label>
+            <select id="order-prioritas">
+                <option value="normal">Normal</option>
+                <option value="urgent">🔴 Urgent</option>
+            </select>`;
+        grid.appendChild(prioField);
+
+        // Tambah field catatan (span full width)
+        const catatanField = document.createElement('div');
+        catatanField.className = 'field';
+        catatanField.style.gridColumn = 'span 2';
+        catatanField.innerHTML = `<label>Catatan</label>
+            <input type="text" id="order-catatan" placeholder="Keterangan tambahan (opsional)">`;
+        grid.appendChild(catatanField);
+    } else {
+        // Fallback: tambah setelah grid
+        const fallback = document.createElement('div');
+        fallback.innerHTML = `
+            <div class="grid2" style="margin-top:10px;">
+                <div class="field"><label>Deadline Pengiriman</label><input type="date" id="order-deadline"></div>
+                <div class="field"><label>Prioritas</label>
+                    <select id="order-prioritas">
+                        <option value="normal">Normal</option>
+                        <option value="urgent">🔴 Urgent</option>
+                    </select>
+                </div>
+                <div class="field" style="grid-column:span 2;">
+                    <label>Catatan</label>
+                    <input type="text" id="order-catatan" placeholder="Keterangan tambahan (opsional)">
+                </div>
+            </div>`;
+        formCard.insertBefore(fallback, formCard.querySelector('.form-actions'));
+    }
+}
+
 window.saveOrder = function() {
-    const tgl = document.getElementById("order-tanggal").value.trim();
-    const po = document.getElementById("order-po").value.trim();
-    const perusahaan = document.getElementById("order-perusahaan").value.trim();
-    const vol = document.getElementById("order-volume").value;
+    const tgl        = document.getElementById('order-tanggal').value.trim();
+    const po         = document.getElementById('order-po').value.trim();
+    const perusahaan = document.getElementById('order-perusahaan').value.trim();
+    const vol        = document.getElementById('order-volume').value;
+    const deadline   = document.getElementById('order-deadline')?.value || '';
+    const prioritas  = document.getElementById('order-prioritas')?.value || 'normal';
+    const catatan    = document.getElementById('order-catatan')?.value.trim() || '';
+
     if (!tgl || !po || !perusahaan || !vol || parseFloat(vol) <= 0) {
-        toast("⚠️ Semua field wajib diisi!");
+        toast('⚠️ Tanggal, Kode PO, Perusahaan, dan Volume wajib diisi!');
         return;
     }
+
+    // Cek duplikat kode PO (kecuali saat edit)
+    const duplikat = (window.orderList || []).find(
+        o => o.kodePO.toLowerCase() === po.toLowerCase() && o.id !== orderEditId
+    );
+    if (duplikat) {
+        toast(`⚠️ Kode PO "${po}" sudah ada! Gunakan kode yang berbeda.`);
+        return;
+    }
+
     const item = {
-        id: orderEditId || uid(),
-        tanggal: tgl,
-        kodePO: po,
-        perusahaan: perusahaan,
-        volumeOrder: parseFloat(vol)
+        id:          orderEditId || uid(),
+        tanggal:     tgl,
+        kodePO:      po,
+        perusahaan:  perusahaan,
+        volumeOrder: parseFloat(vol),
+        deadline:    deadline,
+        prioritas:   prioritas,
+        catatan:     catatan
     };
+
     if (orderEditId) {
         window.orderList = window.orderList.map(o => o.id === orderEditId ? item : o);
         logActivity('Update', 'Order', `PO: ${item.kodePO}`);
@@ -135,59 +657,67 @@ window.saveOrder = function() {
         window.orderList.push(item);
         logActivity('Simpan', 'Order', `PO: ${item.kodePO}`);
     }
+
     persistAll();
     closeOrderForm();
     window.updateAllOrderSummaries();
     if (typeof renderPenjualan === 'function') renderPenjualan();
     if (typeof populateOrderDropdown === 'function') populateOrderDropdown();
     window.renderOrder();
-    toast("✅ Order disimpan!");
+    toast('✅ Order disimpan!');
 };
 
 window.deleteOrder = function(id) {
-    const item = window.orderList.find(o => o.id === id);
+    const item = (window.orderList || []).find(o => o.id === id);
     if (item) logActivity('Hapus', 'Order', `PO: ${item.kodePO}`);
-    if (!confirmDialog("Hapus order?")) return;
-    const terkait = penjualanList.filter(p => p.orderId === id);
-    if (terkait.length > 0 && !confirmDialog(`Order ini memiliki ${terkait.length} pengiriman. Hapus juga?`)) {
-        return;
-    }
-    window.penjualanList = penjualanList.filter(p => p.orderId !== id);
-    window.orderList = window.orderList.filter(o => o.id !== id);
+    if (!confirmDialog('Hapus order ini?')) return;
+    const terkait = (window.penjualanList || []).filter(p => p.orderId === id);
+    if (terkait.length > 0 && !confirmDialog(`Order ini memiliki ${terkait.length} pengiriman terkait. Hapus juga?`)) return;
+    window.penjualanList = (window.penjualanList || []).filter(p => p.orderId !== id);
+    window.orderList = (window.orderList || []).filter(o => o.id !== id);
+    if (orderDetailId === id) orderDetailId = null;
     persistAll();
     window.updateAllOrderSummaries();
     if (typeof renderPenjualan === 'function') renderPenjualan();
     window.renderOrder();
-    toast("🗑️ Dihapus");
+    toast('🗑️ Order dihapus.');
 };
 
 window.editOrder = function(id) {
-    const item = window.orderList.find(o => o.id === id);
+    const item = (window.orderList || []).find(o => o.id === id);
     if (item) window.openOrderForm(item);
 };
 
+// ─────────────────────────────────────────────
+// Update ringkasan (dipanggil dari luar)
+// ─────────────────────────────────────────────
+window.updateAllOrderSummaries = function() {
+    if (typeof renderBoardStockSummary === 'function') renderBoardStockSummary();
+};
+
+// ─────────────────────────────────────────────
 // Dropdown untuk form penjualan
+// ─────────────────────────────────────────────
 window.populateOrderDropdown = function(selectedOrderId = null) {
-    const select = document.getElementById("jual-order");
+    const select = document.getElementById('jual-order');
     if (!select) return;
     select.innerHTML = '<option value="">-- Pilih Order --</option>';
-    window.orderList.forEach(o => {
-        const terkirim = window.getOrderTerpenuhi(o.id);
+    (window.orderList || []).forEach(o => {
+        const terkirim  = window.getOrderTerpenuhi(o.id);
         const stokBoard = getLatestStockByOrderId(o.id);
-        let sisa = o.volumeOrder - stokBoard - terkirim;
-        if (sisa < 0) sisa = 0;
+        const sisa      = Math.max(0, o.volumeOrder - stokBoard - terkirim);
         if (sisa > 0 || o.id === selectedOrderId) {
-            const opt = document.createElement("option");
+            const opt = document.createElement('option');
             opt.value = o.id;
-            opt.textContent = `${o.kodePO} - ${o.perusahaan} (Sisa: ${fmtDec(sisa, 2)} m³)`;
+            opt.textContent = `${o.kodePO} - ${o.perusahaan} (Sisa: ${fmtDec(sisa,2)} m³)`;
             if (o.id === selectedOrderId) opt.selected = true;
             select.appendChild(opt);
         }
     });
     if (selectedOrderId && !select.querySelector(`option[value="${selectedOrderId}"]`)) {
-        const o = window.orderList.find(o => o.id === selectedOrderId);
+        const o = (window.orderList || []).find(o => o.id === selectedOrderId);
         if (o) {
-            const opt = document.createElement("option");
+            const opt = document.createElement('option');
             opt.value = o.id;
             opt.textContent = `${o.kodePO} - ${o.perusahaan} (Selesai)`;
             opt.selected = true;
@@ -197,9 +727,18 @@ window.populateOrderDropdown = function(selectedOrderId = null) {
     }
 };
 
-// Panggil renderOrder saat halaman siap
+// ─────────────────────────────────────────────
+// UTILITY
+// ─────────────────────────────────────────────
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, m =>
+        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
+
+// Init
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         if (window.orderList) window.renderOrder();
-    }, 100);
+    }, 150);
 });

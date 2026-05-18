@@ -1,3 +1,4 @@
+// config.js
 window.STORAGE_KEYS = {
     KAYU: "prodAdmin_kayu",
     SAWMILL: "prodAdmin_sawmill",
@@ -11,5 +12,6 @@ window.STORAGE_KEYS = {
     USERS: "prodAdmin_users",
     ACTIVITY: "prodAdmin_activity",
     SETTINGS: "prodAdmin_settings",
-    BOARDSTOCK: "prodAdmin_boardStock"   // tambahan untuk stok board per PO
+    BOARDSTOCK: "prodAdmin_boardStock",
+    LMKB: "prodAdmin_lmkb"   // tambahan untuk LMKB (meski tidak wajib)
 };
