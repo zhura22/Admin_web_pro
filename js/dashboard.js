@@ -1,407 +1,579 @@
-// dashboard.js – lengkap dengan filter bulan untuk semua komponen
+// dashboard.js — IMPROVED: KPI lengkap, alert cerdas, material flow, charts informatif
 
-window.renderDashboard = function() {
-    const container = document.getElementById("dashboard-container");
-    if (!container) return;
-
-    // Ambil bulan dari localStorage atau default bulan ini
-    let selectedMonth = localStorage.getItem('dashboard_month') || thisMonth();
-    const hashMatch = window.location.hash.match(/month=(\d{4}-\d{2})/);
-    if (hashMatch) selectedMonth = hashMatch[1];
-    
-    const bulanTampil = selectedMonth;
-    const stok = hitungStokRealtime();
-
-    // Data hari ini
-    const totalKayuHariIni = kayuList.filter(x => x.tanggal === today()).reduce((s,x) => s + (parseFloat(x.volume)||0), 0);
-    const totalProduksiHariIni = produksiList.filter(x => x.tanggal === today()).reduce((s,p) => s + ((p.shift1?.planerBagus||0)+(p.shift2?.planerBagus||0)), 0);
-    const totalPenjualanHariIni = penjualanList.filter(x => x.tanggal === today()).reduce((s,x) => s + (parseFloat(x.volume)||0), 0);
-    const totalTenagaHadir = produksiList.filter(x => x.tanggal === today()).reduce((s,p) => s + ((p.shift1?.masuk||0)+(p.shift2?.masuk||0)), 0);
-    
-    const totalPenjualanBulan = penjualanList.filter(p => p.tanggal?.startsWith(bulanTampil)).reduce((s, p) => s + ((p.volume || 0) - (p.retur || 0)), 0);
-    
-    container.innerHTML = `
-        <div class="panel-head">
-            <div>
-                <h2 class="panel-title">🏠 Dashboard</h2>
-                <p class="panel-sub">Ringkasan Hari Ini</p>
-            </div>
-            <div class="flex gap10 items-center">
-                <div class="field" style="margin:0;">
-                    <label style="font-size:10px;">Bulan Laporan</label>
-                    <input type="month" id="dashboard-month" value="${bulanTampil}" style="padding:6px; border-radius:var(--radius-sm); background:var(--input-bg); border:1px solid var(--border); color:var(--text);">
-                </div>
-                <button class="btn btn-secondary btn-sm" id="refresh-dashboard-btn" style="margin-top:16px;">📅 Tampilkan</button>
-            </div>
-        </div>
-        <div class="summary-row">
-            <div class="summary-card"><div class="summary-label">📥 Kayu Masuk Hari Ini</div><div class="summary-value">${fmtDec(totalKayuHariIni,2)} m³</div></div>
-            <div class="summary-card"><div class="summary-label">📦 Produksi Hari Ini</div><div class="summary-value">${fmtDec(totalProduksiHariIni,2)} m³</div></div>
-            <div class="summary-card"><div class="summary-label">📤 Penjualan Hari Ini</div><div class="summary-value">${fmtDec(totalPenjualanHariIni,2)} m³</div></div>
-            <div class="summary-card"><div class="summary-label">👥 Tenaga Hadir</div><div class="summary-value">${totalTenagaHadir} org</div></div>
-        </div>
-        <div class="summary-row">
-            <div class="summary-card" style="grid-column: span 4; text-align: center; background: var(--gold-dim); border-color: var(--gold);">
-                <div class="summary-label" style="font-size: 12px;">📊 KUMULATIF PENJUALAN BOARD (NETTO)</div>
-                <div class="summary-value" style="font-size: 32px; color: var(--gold);" id="dashboard-penjualan-bulan">${fmtDec(totalPenjualanBulan, 2)} m³</div>
-                <div style="font-size:10px;">Bulan: ${bulanTampil}</div>
-            </div>
-        </div>
-        <div class="rekap-stats">
-            <div class="stat-card"><div class="stat-card-label">🌲 Stok Kayu Log</div><div class="stat-card-value">${fmtDec(stok.stokLog,2)} m³</div></div>
-            <div class="stat-card"><div class="stat-card-label">🔥 Stok Palet Basah</div><div class="stat-card-value">${fmtDec(stok.stokBasah,2)} m³</div></div>
-            <div class="stat-card"><div class="stat-card-label">✅ Stok Palet Kering</div><div class="stat-card-value">${fmtDec(stok.stokKering,2)} m³</div></div>
-            <div class="stat-card"><div class="stat-card-label">📦 Stok Board</div><div class="stat-card-value">${fmtDec(stok.stokBoard,2)} m³</div></div>
-        </div>
-        <div class="panel-head" style="margin-top:20px;">
-            <h2 class="panel-title">📊 Persentase Pencapaian Target Bulan Ini</h2>
-            <p class="panel-sub" id="target-subtitle"></p>
-        </div>
-        <div id="achievement-stats" class="rekap-stats"></div>
-        <div class="flex gap10" style="margin-top:16px;">
-            <button class="btn btn-primary" onclick="switchTab('kayu')">➕ Input Kayu</button>
-            <button class="btn btn-primary" onclick="switchTab('produksi')">➕ Input Produksi</button>
-        </div>
-        <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">🎯 Target Hari Ini</h2></div>
-        <div id="target-capaian-container" class="rekap-stats"></div>
-        
-        <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">📊 Target vs Realisasi (Kumulatif Bulan Ini)</h2></div>
-        <div class="chart-vertical" id="target-charts-container">
-            <canvas id="chart-target-kayu" height="200"></canvas>
-            <canvas id="chart-target-sawmill" height="200"></canvas>
-            <canvas id="chart-target-planer" height="200"></canvas>
-            <canvas id="chart-target-ripsaw" height="200"></canvas>
-            <canvas id="chart-target-seri" height="200"></canvas>
-            <canvas id="chart-target-press" height="200"></canvas>
-            <canvas id="chart-target-sezing" height="200"></canvas>
-        </div>
-        
-        <div class="panel-head" style="margin-top:20px;"><h2 class="panel-title">📈 Tren 30 Hari Terakhir</h2></div>
-        <div class="chart-vertical">
-            <canvas id="chart-rendemen" height="200"></canvas>
-            <canvas id="chart-produksi" height="200"></canvas>
-            <canvas id="chart-stok" height="200"></canvas>
-            <canvas id="chart-penjualan" height="200"></canvas>
-        </div>
-    `;
-
-    // Pasang event listener untuk filter bulan
-    const monthPicker = document.getElementById("dashboard-month");
-    const refreshBtn = document.getElementById("refresh-dashboard-btn");
-    if (monthPicker && refreshBtn) {
-        const updateDashboardByMonth = () => {
-            const newMonth = monthPicker.value;
-            localStorage.setItem('dashboard_month', newMonth);
-            // Update penjualan bulan
-            const penjualanNew = penjualanList.filter(p => p.tanggal?.startsWith(newMonth)).reduce((s, p) => s + ((p.volume || 0) - (p.retur || 0)), 0);
-            document.getElementById("dashboard-penjualan-bulan").innerHTML = fmtDec(penjualanNew, 2);
-            document.querySelector("#dashboard-penjualan-bulan").parentElement.querySelector("div:last-child").innerHTML = `Bulan: ${newMonth}`;
-            renderAchievementCards(newMonth);
-            renderAllTargetChartsForMonth(newMonth);
-        };
-        refreshBtn.onclick = updateDashboardByMonth;
-        monthPicker.addEventListener('change', updateDashboardByMonth);
-    }
-    
+// ═══════════════════════════════════════════════════════════════
+// RENDER DASHBOARD UTAMA
+// ═══════════════════════════════════════════════════════════════
+window.renderDashboard = function () {
+    renderDashboardKPI();
     renderTargetCapaian();
-    renderCharts();
-    renderAllTargetChartsForMonth(bulanTampil);
-    renderAchievementCards(bulanTampil);
-    checkAlerts();
+    renderTargetCharts();
+    renderTrendCharts();
 };
 
-// ========== STOK REALTIME ==========
-function hitungStokRealtime() {
-    const totalKayuMasuk = kayuList.reduce((s, x) => s + (parseFloat(x.volume) || 0), 0);
-    const totalProsesSawmill = sawmillList.reduce((s, x) => s + (parseFloat(x.prosesSawmill) || 0), 0);
-    const stokLog = totalKayuMasuk - totalProsesSawmill;
-    
-    const totalPaletBasah = sawmillList.reduce((s, x) => s + (x.totalVolumePalet || (x.hasilPalet || []).reduce((a,p) => a + (p.volume || 0), 0)), 0);
-    const totalOvenIn = ovenHistoryList.reduce((s, h) => s + (h.volumeMasuk || 0), 0);
-    const stokBasah = totalPaletBasah - totalOvenIn;
-    
-    const totalOvenOut = ovenHistoryList.filter(h => h.status === 'completed').reduce((s, h) => s + (h.volumeKeluar || 0), 0);
-    const totalProduksi = produksiList.reduce((s, p) => s + ((p.shift1?.planerBagus || 0) + (p.shift2?.planerBagus || 0)), 0);
-    const stokKering = totalOvenOut - totalProduksi;
-    
-    const totalSezing = sezingList.reduce((s, x) => s + (x.volume || 0), 0);
-    const totalPenjualanNetto = penjualanList.reduce((s, p) => s + ((p.volume || 0) - (p.retur || 0)), 0);
-    const stokBoard = totalSezing - totalPenjualanNetto;
-    
-    return { stokLog, stokBasah, stokKering, stokBoard };
-}
-
-// ========== TARGET HARIAN ==========
-function renderTargetCapaian() {
-    const container = document.getElementById("target-capaian-container");
+// ═══════════════════════════════════════════════════════════════
+// 1. KPI & STATUS CARDS
+// ═══════════════════════════════════════════════════════════════
+function renderDashboardKPI() {
+    const container = document.getElementById('dashboard-container');
     if (!container) return;
-    const todayStr = today();
-    const prodToday = produksiList.find(p => p.tanggal === todayStr);
-    const planerBagus = (prodToday?.shift1?.planerBagus || 0) + (prodToday?.shift2?.planerBagus || 0);
-    const press = (prodToday?.shift1?.press || 0) + (prodToday?.shift2?.press || 0);
-    const targetPlaner = window.appSettings.targetPlaner || 12;
-    const targetPress = window.appSettings.targetPress || 700;
-    const persenPlaner = (planerBagus / targetPlaner) * 100;
-    const persenPress = (press / targetPress) * 100;
-    
+
+    const bulan  = thisMonth();
+    const hari   = today();
+
+    // ── Data agregasi ──
+    const kayuBulan    = (window.kayuList||[]).filter(k => k.tanggal?.startsWith(bulan));
+    const sawBulan     = (window.sawmillList||[]).filter(s => s.tanggal?.startsWith(bulan));
+    const prodBulan    = (window.produksiList||[]).filter(p => p.tanggal?.startsWith(bulan));
+    const penjBulan    = (window.penjualanList||[]).filter(j => j.tanggal?.startsWith(bulan));
+    const orderAktif   = (window.orderList||[]).filter(o => !o.lunas);
+    const kayuHari     = (window.kayuList||[]).filter(k => k.tanggal === hari);
+    const sawHari      = (window.sawmillList||[]).filter(s => s.tanggal === hari);
+    const prodHari     = (window.produksiList||[]).filter(p => p.tanggal === hari);
+    const penjHari     = (window.penjualanList||[]).filter(j => j.tanggal === hari);
+
+    // Kayu bulan
+    const volKayuBln   = kayuBulan.reduce((a, k) => a + (k.volume||0), 0);
+    const nilaiKayuBln = kayuBulan.reduce((a, k) => a + (k.harga||0), 0);
+
+    // Sawmill bulan — rendemen
+    const totVolIn  = sawBulan.reduce((a, s) => a + (s.volumeIn||0), 0);
+    const totPaletOk = sawBulan.reduce((a, s) => a + (s.paletBagus||0), 0);
+    const rendemenBln = totVolIn > 0 ? ((totPaletOk / totVolIn) * 100).toFixed(1) : '—';
+    const rendemenCol = rendemenBln >= 65 ? 'var(--green)' : rendemenBln >= 55 ? 'var(--orange)' : 'var(--red)';
+
+    // Produksi bulan
+    let totPlanerBln = 0, totPressBln = 0, totRipsawBln = 0, totSeriBtn = 0;
+    prodBulan.forEach(p => {
+        const s1 = p.shift1||{}, s2 = p.shift2||{};
+        totPlanerBln  += (s1.planerBagus||0)+(s2.planerBagus||0);
+        totPressBln   += (s1.press||0)+(s2.press||0);
+        totRipsawBln  += (s1.ripsawIn||0)+(s2.ripsawIn||0);
+        totSeriBtn    += (s1.seri||0)+(s2.seri||0);
+    });
+    const efRipsawBln = totPlanerBln > 0 ? (totRipsawBln / totPlanerBln * 100).toFixed(1) : '—';
+    const efCol       = efRipsawBln >= 80 ? 'var(--green)' : efRipsawBln >= 60 ? 'var(--orange)' : 'var(--red)';
+
+    // Produksi HARI INI
+    let totPlanerHari = 0, totPressHari = 0;
+    prodHari.forEach(p => {
+        const s1 = p.shift1||{}, s2 = p.shift2||{};
+        totPlanerHari += (s1.planerBagus||0)+(s2.planerBagus||0);
+        totPressHari  += (s1.press||0)+(s2.press||0);
+    });
+
+    // Penjualan bulan
+    const volJualBln  = penjBulan.reduce((a, j) => a + (j.volume||0), 0);
+    const nilaiJualBln= penjBulan.reduce((a, j) => a + (j.harga||0), 0);
+    const volJualHari = penjHari.reduce((a, j) => a + (j.volume||0), 0);
+
+    // Oven aktif
+    const ovenData    = (window.ovenList||[]);
+    const ovenAktif   = ovenData.filter(o => o.status === 'isi').length;
+    const ovenKosong  = ovenData.length - ovenAktif;
+
+    // Order aktif
+    const totVolOrder = orderAktif.reduce((a, o) => a + (o.volume||0), 0);
+
+    // Alert logic
+    const alerts = [];
+    if (ovenKosong >= 3) alerts.push({ type: 'warn', msg: `${ovenKosong} chamber oven kosong — perlu pengisian` });
+    if (orderAktif.length > 0) alerts.push({ type: 'info', msg: `${orderAktif.length} order aktif belum lunas (${fmtDec(totVolOrder,2)} m³)` });
+    if (totPressHari === 0 && new Date().getHours() >= 10) alerts.push({ type: 'warn', msg: `Belum ada laporan press hari ini` });
+    if (kayuHari.length === 0) alerts.push({ type: 'info', msg: `Belum ada pembelian kayu hari ini` });
+    if (totPlanerBln > 0 && parseFloat(efRipsawBln) < 60) alerts.push({ type: 'danger', msg: `Efisiensi ripsaw bulan ini rendah: ${efRipsawBln}%` });
+
+    // Update header alert badge
+    const alertBadge = document.getElementById('header-alert');
+    const alertCount = document.getElementById('alert-count');
+    if (alertBadge && alertCount) {
+        if (alerts.length > 0) {
+            alertBadge.style.display = 'inline-flex';
+            alertCount.textContent = alerts.length;
+        } else {
+            alertBadge.style.display = 'none';
+        }
+    }
+
+    // ── HTML ──
     container.innerHTML = `
-        <div class="stat-card"><div class="stat-card-label">Planer Bagus (m³)</div><div class="stat-card-value">${planerBagus} / ${targetPlaner}</div><progress value="${persenPlaner}" max="100" style="width:100%; height:8px; border-radius:4px;"></progress><span style="font-size:10px;">${persenPlaner.toFixed(0)}%</span></div>
-        <div class="stat-card"><div class="stat-card-label">Press (lbr)</div><div class="stat-card-value">${press} / ${targetPress}</div><progress value="${persenPress}" max="100" style="width:100%; height:8px; border-radius:4px;"></progress><span style="font-size:10px;">${persenPress.toFixed(0)}%</span></div>
-    `;
+    <!-- SECTION TITLE -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div>
+            <div style="font-family:var(--font-mono);font-size:18px;color:var(--gold);font-weight:700;">📊 Overview — ${formatBulan(bulan)}</div>
+            <div style="font-size:11px;color:var(--muted);">Update: ${fmtDate(hari)} · Klik kartu untuk detail</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="window.renderDashboard()">🔄 Refresh</button>
+    </div>
+
+    <!-- ALERT PANEL -->
+    ${alerts.length ? `
+    <div style="background:var(--red-bg);border:1px solid rgba(248,113,113,0.25);border-radius:10px;padding:14px 18px;margin-bottom:18px;">
+        <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px;">⚠️ Perhatian (${alerts.length})</div>
+        ${alerts.map(a => `<div style="font-size:12px;color:${a.type==='danger'?'var(--red)':a.type==='warn'?'var(--orange)':'var(--blue)'};padding:3px 0;">• ${a.msg}</div>`).join('')}
+    </div>` : `<div style="background:var(--green-bg);border:1px solid rgba(74,222,128,0.2);border-radius:10px;padding:12px 18px;margin-bottom:18px;font-size:12px;color:var(--green);">✅ Semua sistem berjalan normal</div>`}
+
+    <!-- HARI INI vs BULAN INI -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;">
+
+        <!-- Hari ini -->
+        <div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:12px;padding:18px;">
+            <div style="font-size:11px;font-weight:700;color:var(--gold-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">📅 Hari Ini — ${fmtDate(hari)}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                ${miniKPI('Planer Bagus', fmtDec(totPlanerHari,2)+' m³', totPlanerHari > 0 ? 'var(--gold)' : 'var(--muted)')}
+                ${miniKPI('Press', fmt(totPressHari)+' lbr', totPressHari > 0 ? 'var(--blue)' : 'var(--muted)')}
+                ${miniKPI('Jual Keluar', fmtDec(volJualHari,2)+' m³', volJualHari > 0 ? 'var(--green)' : 'var(--muted)')}
+                ${miniKPI('Kayu Masuk', fmtDec(kayuHari.reduce((a,k)=>a+(k.volume||0),0),2)+' m³', kayuHari.length > 0 ? 'var(--orange)' : 'var(--muted)')}
+            </div>
+        </div>
+
+        <!-- Bulan ini -->
+        <div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:12px;padding:18px;">
+            <div style="font-size:11px;font-weight:700;color:var(--gold-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">📆 Bulan Ini — ${formatBulan(bulan)}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                ${miniKPI('Planer Bagus', fmtDec(totPlanerBln,2)+' m³', 'var(--gold)')}
+                ${miniKPI('Total Press', fmt(totPressBln)+' lbr', 'var(--blue)')}
+                ${miniKPI('Volume Jual', fmtDec(volJualBln,2)+' m³', 'var(--green)')}
+                ${miniKPI('Kayu Masuk', fmtDec(volKayuBln,2)+' m³', 'var(--orange)')}
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI BARIS BAWAH -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;">
+        ${bigKPI('Ef. Ripsaw', efRipsawBln === '—' ? '—' : efRipsawBln+'%', efCol, '📊', 'Efisiensi ripsaw bulan ini')}
+        ${bigKPI('Rendemen Sawmill', rendemenBln === '—' ? '—' : rendemenBln+'%', rendemenCol, '🪚', 'Rendemen sawmill bulan ini')}
+        ${bigKPI('Oven Aktif', ovenAktif+'/'+ovenData.length, ovenAktif > 0 ? 'var(--orange)' : 'var(--muted)', '🔥', 'Chamber oven terisi')}
+        ${bigKPI('Order Aktif', orderAktif.length+' PO', orderAktif.length > 0 ? 'var(--blue)' : 'var(--green)', '📑', fmtDec(totVolOrder,2)+' m³')}
+        ${bigKPI('Nilai Jual', 'Rp '+fmtRupiah(nilaiJualBln), 'var(--green)', '💰', 'Total penjualan bulan ini')}
+        ${bigKPI('Total Seri', fmt(totSeriBtn)+' lbr', 'var(--gold-light)', '🔗', 'Seri bulan ini')}
+    </div>
+
+    <!-- MATERIAL FLOW -->
+    <div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:12px;padding:18px;margin-bottom:4px;">
+        <div style="font-size:11px;font-weight:700;color:var(--gold-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">🔄 Aliran Material — ${formatBulan(bulan)}</div>
+        <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;overflow-x:auto;">
+            ${flowStep('🪵 Kayu', fmtDec(volKayuBln,2), 'm³', 'var(--orange)', 'Dibeli')}
+            <div style="color:var(--gold);font-size:20px;padding:0 4px;">→</div>
+            ${flowStep('🪚 Sawmill', fmtDec(totPaletOk,2), 'm³', 'var(--gold)', 'Palet Bagus')}
+            <div style="color:var(--gold);font-size:20px;padding:0 4px;">→</div>
+            ${flowStep('🔥 Oven', ovenAktif+'', 'chamber', 'var(--orange)', 'Sedang Isi')}
+            <div style="color:var(--gold);font-size:20px;padding:0 4px;">→</div>
+            ${flowStep('📦 Produksi', fmtDec(totPlanerBln,2), 'm³', 'var(--blue)', 'Planer Bagus')}
+            <div style="color:var(--gold);font-size:20px;padding:0 4px;">→</div>
+            ${flowStep('💰 Penjualan', fmtDec(volJualBln,2), 'm³', 'var(--green)', 'Terjual')}
+        </div>
+        ${totPlanerBln > 0 ? `
+        <div style="margin-top:14px;">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Konversi Material: Kayu → Planer Bagus</div>
+            <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+                <div style="height:100%;width:${Math.min(100,(totPlanerBln/(volKayuBln||1)*100)).toFixed(1)}%;background:linear-gradient(90deg,var(--gold),var(--blue));border-radius:4px;transition:width .5s ease;"></div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">${Math.min(100,(totPlanerBln/(volKayuBln||1)*100)).toFixed(1)}% dari kayu yang masuk menjadi planer bagus</div>
+        </div>` : ''}
+    </div>`;
 }
 
-// ========== GRAFIK TREN 30 HARI ==========
-function renderCharts() {
-    const labels = [];
-    const rendemenData = [];
-    const produksiData = [];
-    const stokData = [];
-    const penjualanData = [];
-    const last30Days = [];
+function miniKPI(label, value, color) {
+    return `<div style="background:var(--bg3);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">${label}</div>
+        <div style="font-size:15px;font-weight:700;color:${color};font-family:var(--font-mono);">${value}</div>
+    </div>`;
+}
+
+function bigKPI(label, value, color, icon, sub) {
+    return `<div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;padding:14px 16px;cursor:default;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">${icon} ${label}</div>
+        <div style="font-size:20px;font-weight:700;color:${color};font-family:var(--font-mono);">${value}</div>
+        ${sub ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;">${sub}</div>` : ''}
+    </div>`;
+}
+
+function flowStep(label, value, unit, color, sublabel) {
+    return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:100px;text-align:center;flex-shrink:0;">
+        <div style="font-size:11px;color:var(--muted);">${label}</div>
+        <div style="font-size:18px;font-weight:700;color:${color};font-family:var(--font-mono);">${value}</div>
+        <div style="font-size:9px;color:var(--muted);">${unit} · ${sublabel}</div>
+    </div>`;
+}
+
+function fmtRupiah(n) {
+    if (!n) return '0';
+    if (n >= 1e9) return (n/1e9).toFixed(1)+'M';
+    if (n >= 1e6) return (n/1e6).toFixed(1)+'jt';
+    return fmt(n);
+}
+
+function formatBulan(ym) {
+    if (!ym) return '';
+    const [y, m] = ym.split('-');
+    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+    return (months[parseInt(m)-1]||m) + ' ' + y;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 2. TARGET CAPAIAN HARI INI (progress bar per metrik)
+// ═══════════════════════════════════════════════════════════════
+window.renderTargetCapaian = function () {
+    const container = document.getElementById('target-capaian-container');
+    if (!container) return;
+
+    const cfg     = window.appSettings || {};
+    const hari    = today();
+    const bulan   = thisMonth();
+
+    // Ambil target dari settings jika ada
+    const targets = {
+        kayu:    cfg.targetKayuHarian    || 10,
+        sawmill: cfg.targetSawmillHarian || 8,
+        planer:  cfg.targetPlanerHarian  || 3,
+        press:   cfg.targetPressHarian   || 1000,
+        seri:    cfg.targetSeriHarian    || 800,
+        sezing:  cfg.targetSezingHarian  || 2
+    };
+
+    // Aktual hari ini
+    const kayuHari  = (window.kayuList||[]).filter(k => k.tanggal === hari);
+    const sawHari   = (window.sawmillList||[]).filter(s => s.tanggal === hari);
+    const prodHari  = (window.produksiList||[]).filter(p => p.tanggal === hari);
+    const sezHari   = (window.sezingList||[]).filter(s => s.tanggal === hari);
+
+    let planerH = 0, pressH = 0, seriH = 0;
+    prodHari.forEach(p => {
+        const s1 = p.shift1||{}, s2 = p.shift2||{};
+        planerH += (s1.planerBagus||0)+(s2.planerBagus||0);
+        pressH  += (s1.press||0)+(s2.press||0);
+        seriH   += (s1.seri||0)+(s2.seri||0);
+    });
+
+    const aktual = {
+        kayu:    kayuHari.reduce((a,k) => a+(k.volume||0), 0),
+        sawmill: sawHari.reduce((a,s)  => a+(s.volumeIn||0), 0),
+        planer:  planerH,
+        press:   pressH,
+        seri:    seriH,
+        sezing:  sezHari.reduce((a,s)  => a+(s.volume||0), 0)
+    };
+
+    const metrik = [
+        { key:'kayu',    label:'🪵 Kayu Masuk',     unit:'m³',  target: targets.kayu    },
+        { key:'sawmill', label:'🪚 Sawmill',         unit:'m³',  target: targets.sawmill },
+        { key:'planer',  label:'📦 Planer Bagus',   unit:'m³',  target: targets.planer  },
+        { key:'press',   label:'🔩 Press',           unit:'lbr', target: targets.press   },
+        { key:'seri',    label:'🔗 Seri',            unit:'lbr', target: targets.seri    },
+        { key:'sezing',  label:'📏 Sezing',          unit:'m³',  target: targets.sezing  }
+    ];
+
+    container.innerHTML = metrik.map(m => {
+        const act = aktual[m.key] || 0;
+        const pct = m.target > 0 ? Math.min(100, (act/m.target)*100) : 0;
+        const col = pct >= 100 ? 'var(--green)' : pct >= 60 ? 'var(--gold)' : pct >= 30 ? 'var(--orange)' : 'var(--red)';
+        const icon = pct >= 100 ? '✅' : pct >= 60 ? '🟡' : '🔴';
+        return `
+        <div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;padding:14px 16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div style="font-size:11px;color:var(--muted);">${m.label}</div>
+                <div style="font-size:10px;">${icon}</div>
+            </div>
+            <div style="font-size:20px;font-weight:700;color:${col};font-family:var(--font-mono);">${typeof act === 'number' && !Number.isInteger(act) ? fmtDec(act,2) : fmt(act)} <span style="font-size:10px;font-weight:400;">${m.unit}</span></div>
+            <div style="height:5px;background:var(--border);border-radius:3px;margin:8px 0 4px;overflow:hidden;">
+                <div style="height:100%;width:${pct.toFixed(1)}%;background:${col};border-radius:3px;transition:width .6s ease;"></div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);">${pct.toFixed(0)}% dari target ${typeof m.target === 'number' && !Number.isInteger(m.target) ? fmtDec(m.target,2) : fmt(m.target)} ${m.unit}</div>
+        </div>`;
+    }).join('');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 3. CHARTS TARGET vs REALISASI (kumulatif bulan ini)
+// ═══════════════════════════════════════════════════════════════
+window.renderTargetCharts = function () {
+    const bulan = thisMonth();
+    const cfg   = window.appSettings || {};
+
+    // Hitung hari dalam bulan sampai hari ini
+    const [y, m] = bulan.split('-').map(Number);
+    const hariIni  = parseInt(today().split('-')[2]);
+    const hariLabels = Array.from({length: hariIni}, (_, i) => String(i+1).padStart(2,'0'));
+
+    function sumPerHari(list, dateField, valueFunc) {
+        return hariLabels.map(d => {
+            const tgl = `${bulan}-${d}`;
+            return list.filter(x => x[dateField] === tgl).reduce((a, x) => a + valueFunc(x), 0);
+        });
+    }
+
+    // Data per hari
+    const kayuPerHari    = sumPerHari(window.kayuList||[], 'tanggal', k => k.volume||0);
+    const sawmillPerHari = sumPerHari(window.sawmillList||[], 'tanggal', s => s.volumeIn||0);
+
+    let prodByDate = {};
+    (window.produksiList||[]).forEach(p => {
+        if (!p.tanggal?.startsWith(bulan)) return;
+        const d = p.tanggal;
+        if (!prodByDate[d]) prodByDate[d] = { planer:0, press:0, seri:0, ripsaw:0 };
+        const s1=p.shift1||{}, s2=p.shift2||{};
+        prodByDate[d].planer  += (s1.planerBagus||0)+(s2.planerBagus||0);
+        prodByDate[d].press   += (s1.press||0)+(s2.press||0);
+        prodByDate[d].seri    += (s1.seri||0)+(s2.seri||0);
+        prodByDate[d].ripsaw  += (s1.ripsawIn||0)+(s2.ripsawIn||0);
+    });
+
+    const planerPerHari  = hariLabels.map(d => prodByDate[`${bulan}-${d}`]?.planer  || 0);
+    const pressPerHari   = hariLabels.map(d => prodByDate[`${bulan}-${d}`]?.press   || 0);
+    const seriPerHari    = hariLabels.map(d => prodByDate[`${bulan}-${d}`]?.seri    || 0);
+    const ripsawPerHari  = hariLabels.map(d => prodByDate[`${bulan}-${d}`]?.ripsaw  || 0);
+    const sezingPerHari  = sumPerHari(window.sezingList||[], 'tanggal', s => s.volume||0);
+
+    // Target harian dari settings
+    const tKayu    = cfg.targetKayuHarian    || 10;
+    const tSawmill = cfg.targetSawmillHarian || 8;
+    const tPlaner  = cfg.targetPlanerHarian  || 3;
+    const tRipsaw  = cfg.targetRipsawHarian  || 2.5;
+    const tSeri    = cfg.targetSeriHarian    || 800;
+    const tPress   = cfg.targetPressHarian   || 1000;
+    const tSezing  = cfg.targetSezingHarian  || 2;
+    const targetLine = n => Array(hariLabels.length).fill(n);
+
+    const chartConfigs = [
+        { id: 'chart-target-kayu',    label: '🪵 Kayu Masuk (m³)',       data: kayuPerHari,   target: tKayu,    color: '#ff9f43' },
+        { id: 'chart-target-sawmill', label: '🪚 Sawmill Vol.In (m³)',    data: sawmillPerHari,target: tSawmill, color: '#d4a017' },
+        { id: 'chart-target-planer',  label: '📦 Planer Bagus (m³)',      data: planerPerHari, target: tPlaner,  color: '#e8c84a' },
+        { id: 'chart-target-ripsaw',  label: '🔄 Ripsaw Input (m³)',      data: ripsawPerHari, target: tRipsaw,  color: '#60a5fa' },
+        { id: 'chart-target-seri',    label: '🔗 Seri (lbr)',             data: seriPerHari,   target: tSeri,    color: '#a78bfa' },
+        { id: 'chart-target-press',   label: '🔩 Press (lbr)',            data: pressPerHari,  target: tPress,   color: '#38bdf8' },
+        { id: 'chart-target-sezing',  label: '📏 Sezing (m³)',            data: sezingPerHari, target: tSezing,  color: '#4ade80' },
+    ];
+
+    chartConfigs.forEach(cfg => {
+        const ctx = document.getElementById(cfg.id);
+        if (!ctx || !window.Chart) return;
+        if (ctx._chartInst) ctx._chartInst.destroy();
+
+        const kumulatif      = cfg.data.reduce((acc, v, i) => { acc.push((acc[i-1]||0)+v); return acc; }, []);
+        const targetKumulatif = targetLine(cfg.target).reduce((acc, v, i) => { acc.push((acc[i-1]||0)+v); return acc; }, []);
+
+        ctx._chartInst = new Chart(ctx, {
+            data: {
+                labels: hariLabels,
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Harian',
+                        data: cfg.data,
+                        backgroundColor: hexAlpha(cfg.color, 0.5),
+                        borderColor: cfg.color,
+                        borderWidth: 1,
+                        yAxisID: 'y',
+                        order: 2
+                    },
+                    {
+                        type: 'line',
+                        label: 'Kumulatif Aktual',
+                        data: kumulatif,
+                        borderColor: cfg.color,
+                        backgroundColor: hexAlpha(cfg.color, 0.08),
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        fill: true,
+                        tension: 0.3,
+                        yAxisID: 'y1',
+                        order: 1
+                    },
+                    {
+                        type: 'line',
+                        label: 'Target Kumulatif',
+                        data: targetKumulatif,
+                        borderColor: 'rgba(255,255,255,0.25)',
+                        borderDash: [5, 4],
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0,
+                        yAxisID: 'y1',
+                        order: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    title: { display: true, text: cfg.label, color: '#8a8578', font: { size: 11, weight: '600' }, padding: { bottom: 8 } },
+                    legend: { labels: { color: '#8a8578', font: { size: 9 }, boxWidth: 12 } }
+                },
+                scales: {
+                    x: { ticks: { color: '#666', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+                    y:  { position: 'left',  ticks: { color: cfg.color, font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+                    y1: { position: 'right', ticks: { color: '#8a8578', font: { size: 9 } }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    });
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 4. TREN 30 HARI TERAKHIR
+// ═══════════════════════════════════════════════════════════════
+window.renderTrendCharts = function () {
+    // Buat array 30 hari terakhir
+    const days = [];
     for (let i = 29; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split("T")[0];
-        last30Days.push(dateStr);
+        days.push(d.toISOString().split('T')[0]);
     }
-    last30Days.forEach(date => {
-        labels.push(date.slice(5));
-        const kayuHari = kayuList.filter(x => x.tanggal === date).reduce((s,x)=>s+(x.volume||0),0);
-        const paletHari = sawmillList.filter(x => x.tanggal === date).reduce((s,x)=>s+(x.totalVolumePalet||0),0);
-        const rendemen = kayuHari > 0 ? (paletHari/kayuHari)*100 : 0;
-        rendemenData.push(rendemen);
-        const produksiHari = produksiList.filter(p => p.tanggal === date).reduce((s,p)=>s+((p.shift1?.planerBagus||0)+(p.shift2?.planerBagus||0)),0);
-        produksiData.push(produksiHari);
-        const allOvenOut = ovenHistoryList.filter(h => h.tanggalSelesai && h.tanggalSelesai <= date).reduce((s,h)=>s+(h.volumeKeluar||0),0);
-        const allProduksi = produksiList.filter(p => p.tanggal && p.tanggal <= date).reduce((s,p)=>s+((p.shift1?.planerBagus||0)+(p.shift2?.planerBagus||0)),0);
-        stokData.push(allOvenOut - allProduksi);
-        const penjualanHari = penjualanList.filter(p => p.tanggal === date).reduce((s,p)=>s+(p.volume||0),0);
-        penjualanData.push(penjualanHari);
+    const labels = days.map(d => d.slice(5)); // MM-DD
+
+    // Rendemen per hari
+    const rendemenData = days.map(d => {
+        const sawDay = (window.sawmillList||[]).filter(s => s.tanggal === d);
+        const vIn    = sawDay.reduce((a,s) => a+(s.volumeIn||0), 0);
+        const pOk    = sawDay.reduce((a,s) => a+(s.paletBagus||0), 0);
+        return vIn > 0 ? parseFloat((pOk/vIn*100).toFixed(1)) : null;
     });
-    
-    if (window.myChartRendemen) window.myChartRendemen.destroy();
-    if (window.myChartProduksi) window.myChartProduksi.destroy();
-    if (window.myChartStok) window.myChartStok.destroy();
-    if (window.myChartPenjualan) window.myChartPenjualan.destroy();
-    
-    const ctxR = document.getElementById('chart-rendemen')?.getContext('2d');
-    const ctxP = document.getElementById('chart-produksi')?.getContext('2d');
-    const ctxS = document.getElementById('chart-stok')?.getContext('2d');
-    const ctxJ = document.getElementById('chart-penjualan')?.getContext('2d');
-    
-    if (ctxR) window.myChartRendemen = new Chart(ctxR, { type: 'line', data: { labels, datasets: [{ label: 'Rendemen %', data: rendemenData, borderColor: '#d4a017', fill: false }] }, options: { responsive: true } });
-    if (ctxP) window.myChartProduksi = new Chart(ctxP, { type: 'bar', data: { labels, datasets: [{ label: 'Produksi (m³)', data: produksiData, backgroundColor: '#d4a017' }] }, options: { responsive: true } });
-    if (ctxS) window.myChartStok = new Chart(ctxS, { type: 'line', data: { labels, datasets: [{ label: 'Stok Kering (m³)', data: stokData, borderColor: '#4ade80', fill: false }] }, options: { responsive: true } });
-    if (ctxJ) window.myChartPenjualan = new Chart(ctxJ, { type: 'bar', data: { labels, datasets: [{ label: 'Penjualan (m³)', data: penjualanData, backgroundColor: '#f87171' }] }, options: { responsive: true } });
-}
 
-// ========== GRAFIK TARGET UNTUK BULAN TERTENTU ==========
-function renderAllTargetChartsForMonth(month) {
-    const [year, monthNum] = month.split('-');
-    const startDate = `${year}-${monthNum}-01`;
-    const lastDate = new Date(parseInt(year), parseInt(monthNum), 0).getDate();
-    const endDate = `${year}-${monthNum}-${lastDate}`;
-    const todayStr = today();
-    const finalEndDate = (month === thisMonth()) ? todayStr : endDate;
-    
-    renderChartTargetForDateRange('kayu', 'Kayu Masuk', kayuList, 'volume', window.appSettings.targetKayuHarian || 30, startDate, finalEndDate, 'stokAwalKayu');
-    renderChartTargetForDateRange('sawmill', 'Proses Sawmill', sawmillList, 'prosesSawmill', window.appSettings.targetSawmillHarian || 25, startDate, finalEndDate, 0);
-    renderChartTargetForDateRange('planer', 'Planer Bagus', produksiList, (item) => (item.shift1?.planerBagus||0)+(item.shift2?.planerBagus||0), window.appSettings.targetPlaner || 12, startDate, finalEndDate, 0);
-    renderChartTargetForDateRange('ripsaw', 'Ripsaw Input', produksiList, (item) => (item.shift1?.ripsawIn||0)+(item.shift2?.ripsawIn||0), window.appSettings.targetRipsaw || 13, startDate, finalEndDate, 0);
-    renderChartTargetForDateRange('seri', 'Seri Hasil', produksiList, (item) => (item.shift1?.seri||0)+(item.shift2?.seri||0), window.appSettings.targetSeri || 700, startDate, finalEndDate, 0);
-    renderChartTargetForDateRange('press', 'Press Hasil', produksiList, (item) => (item.shift1?.press||0)+(item.shift2?.press||0), window.appSettings.targetPress || 700, startDate, finalEndDate, 0);
-    renderChartTargetForDateRange('sezing', 'Sezing', sezingList, 'volume', window.appSettings.targetSezingHarian || 15, startDate, finalEndDate, 0);
-}
+    // Produksi planer bagus per hari
+    const prodData = days.map(d => {
+        let tot = 0;
+        (window.produksiList||[]).filter(p => p.tanggal === d).forEach(p => {
+            const s1=p.shift1||{}, s2=p.shift2||{};
+            tot += (s1.planerBagus||0)+(s2.planerBagus||0);
+        });
+        return tot || null;
+    });
 
-function renderChartTargetForDateRange(id, label, dataList, valueField, targetHarian, startDate, endDate, stokAwalField = 0) {
-    const canvas = document.getElementById(`chart-target-${id}`);
-    if (!canvas) return;
+    // Stok kayu kumulatif (running total masuk - sawmill)
+    const stokData = days.map((d, i) => {
+        const masukSampai = (window.kayuList||[]).filter(k => k.tanggal <= d).reduce((a,k) => a+(k.volume||0), 0);
+        const prosesedSampai = (window.sawmillList||[]).filter(s => s.tanggal <= d).reduce((a,s) => a+(s.volumeIn||0), 0);
+        return parseFloat((masukSampai - prosesedSampai).toFixed(2));
+    });
 
-    const stokAwal = (typeof stokAwalField === 'string') ? (window.appSettings[stokAwalField] || 0) : stokAwalField;
-    
-    const dates = [];
-    let current = new Date(startDate);
-    const end = new Date(endDate);
-    while (current <= end) {
-        dates.push(current.toISOString().split('T')[0]);
-        current.setDate(current.getDate() + 1);
-    }
-    
-    let targetKumulatif = [];
-    let realisasiKumulatif = [];
-    let akumulasiTarget = 0;
-    let akumulasiRealisasi = stokAwal;
+    // Penjualan per hari
+    const jualData = days.map(d => {
+        return (window.penjualanList||[]).filter(j => j.tanggal === d).reduce((a,j) => a+(j.volume||0), 0) || null;
+    });
 
-    function isWeekend(tglStr) {
-        const date = new Date(tglStr);
-        return date.getDay() === 0;
-    }
-
-    for (let i = 0; i < dates.length; i++) {
-        const tgl = dates[i];
-        if (!isWeekend(tgl)) {
-            akumulasiTarget += targetHarian;
-        }
-        targetKumulatif.push(akumulasiTarget);
-
-        let nilaiHari = 0;
-        if (typeof valueField === 'function') {
-            nilaiHari = dataList.filter(x => x.tanggal === tgl).reduce((s, item) => s + valueField(item), 0);
-        } else {
-            nilaiHari = dataList.filter(x => x.tanggal === tgl).reduce((s, item) => s + (parseFloat(item[valueField]) || 0), 0);
-        }
-        akumulasiRealisasi += nilaiHari;
-        realisasiKumulatif.push(akumulasiRealisasi);
-    }
-
-    const chartKey = `myChartTarget_${id}`;
-    if (window[chartKey]) window[chartKey].destroy();
-    const ctx = canvas.getContext('2d');
-    window[chartKey] = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: dates.map(d => d.slice(5)),
-            datasets: [
-                { label: `Target Kumulatif ${label} (${targetHarian}/hari kerja)`, data: targetKumulatif, borderColor: '#60a5fa', borderWidth: 2, fill: false, tension: 0.1 },
-                { label: `Realisasi Kumulatif ${label}`, data: realisasiKumulatif, borderColor: '#d4a017', borderWidth: 2, fill: false, tension: 0.1 }
-            ]
+    const trendConfigs = [
+        {
+            id: 'chart-rendemen',
+            label: '📈 Rendemen Sawmill (%)',
+            data: rendemenData,
+            borderColor: '#d4a017',
+            bgColor: 'rgba(212,160,23,0.08)',
+            yUnit: '%',
+            yMin: 0, yMax: 100
         },
-        options: {
-            responsive: true, maintainAspectRatio: true,
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            let value = context.raw;
-                            let result = `${label}: ${value.toFixed(1)}`;
-                            if (context.dataset.borderColor === '#d4a017' && targetKumulatif[context.dataIndex] > 0) {
-                                const targetVal = targetKumulatif[context.dataIndex];
-                                const persen = (value / targetVal) * 100;
-                                result += ` (${persen.toFixed(1)}% dari target)`;
-                            }
-                            return result;
+        {
+            id: 'chart-produksi',
+            label: '📦 Planer Bagus Harian (m³)',
+            data: prodData,
+            borderColor: '#60a5fa',
+            bgColor: 'rgba(96,165,250,0.08)',
+            yUnit: 'm³'
+        },
+        {
+            id: 'chart-stok',
+            label: '🪵 Estimasi Stok Kayu Log (m³)',
+            data: stokData,
+            borderColor: '#ff9f43',
+            bgColor: 'rgba(255,159,67,0.08)',
+            yUnit: 'm³'
+        },
+        {
+            id: 'chart-penjualan',
+            label: '💰 Volume Penjualan Harian (m³)',
+            data: jualData,
+            borderColor: '#4ade80',
+            bgColor: 'rgba(74,222,128,0.08)',
+            yUnit: 'm³'
+        }
+    ];
+
+    trendConfigs.forEach(cfg => {
+        const ctx = document.getElementById(cfg.id);
+        if (!ctx || !window.Chart) return;
+        if (ctx._chartInst) ctx._chartInst.destroy();
+
+        // Hitung moving average 7 hari
+        const maData = cfg.data.map((_, i) => {
+            const slice = cfg.data.slice(Math.max(0,i-6), i+1).filter(v => v !== null);
+            return slice.length > 0 ? parseFloat((slice.reduce((a,v)=>a+v,0)/slice.length).toFixed(2)) : null;
+        });
+
+        ctx._chartInst = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Nilai Harian',
+                        data: cfg.data,
+                        borderColor: cfg.borderColor,
+                        backgroundColor: cfg.bgColor,
+                        borderWidth: 1.5,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        fill: true,
+                        tension: 0.3,
+                        spanGaps: true
+                    },
+                    {
+                        label: 'MA 7 Hari',
+                        data: maData,
+                        borderColor: 'rgba(255,255,255,0.4)',
+                        borderWidth: 1.5,
+                        borderDash: [4,3],
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.4,
+                        spanGaps: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    title: { display: true, text: cfg.label, color: '#8a8578', font: { size: 11, weight: '600' }, padding: { bottom: 6 } },
+                    legend: { labels: { color: '#8a8578', font: { size: 9 }, boxWidth: 12 } },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: ${ctx.raw ?? '—'} ${cfg.yUnit}`
                         }
                     }
                 },
-                legend: { position: 'top', labels: { color: '#e6dfd0' } }
-            },
-            scales: {
-                y: { title: { display: true, text: 'Kumulatif', color: '#e6dfd0' }, grid: { color: '#2e2b20' }, ticks: { color: '#e6dfd0' } },
-                x: { title: { display: true, text: 'Tanggal', color: '#e6dfd0' }, ticks: { color: '#e6dfd0', maxRotation: 45, minRotation: 45 } }
-            }
-        }
-    });
-}
-
-// ========== CARD PENCAPAIAN (ACHIEVEMENT) ==========
-function renderAchievementCards(bulan) {
-    const container = document.getElementById("achievement-stats");
-    if (!container) return;
-    
-    const [year, month] = bulan.split('-');
-    const startOfMonth = new Date(parseInt(year), parseInt(month)-1, 1);
-    const endOfMonth = new Date(parseInt(year), parseInt(month), 0);
-    const bulanIni = startOfMonth.toISOString().split('T')[0];
-    const todayStr = today();
-    const endDate = (bulan === thisMonth()) ? todayStr : endOfMonth.toISOString().split('T')[0];
-    
-    // Hitung hari kerja dalam bulan yang dipilih (Senin-Sabtu)
-    let workingDays = 0;
-    let current = new Date(startOfMonth);
-    const limitDate = (bulan === thisMonth()) ? new Date(todayStr) : endOfMonth;
-    while (current <= limitDate) {
-        if (current.getDay() !== 0) workingDays++;
-        current.setDate(current.getDate() + 1);
-    }
-    
-    function countActiveDays(dataList) {
-        const days = new Set();
-        dataList.forEach(item => {
-            if (item.tanggal && item.tanggal >= bulanIni && item.tanggal <= endDate) {
-                days.add(item.tanggal);
+                scales: {
+                    x: {
+                        ticks: { color: '#666', font: { size: 9 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 15 },
+                        grid: { color: 'rgba(255,255,255,0.03)' }
+                    },
+                    y: {
+                        min: cfg.yMin,
+                        max: cfg.yMax,
+                        ticks: { color: '#8a8578', font: { size: 9 } },
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        title: { display: true, text: cfg.yUnit, color: '#8a8578', font: { size: 9 } }
+                    }
+                }
             }
         });
-        return days.size;
-    }
-    
-    const categories = [
-        { id: 'kayu', label: 'Kayu Masuk', dataList: kayuList, valueField: 'volume', targetSetting: 'targetKayuHarian', stokAwal: window.appSettings.stokAwalKayu || 0, unit: 'm³' },
-        { id: 'sawmill', label: 'Proses Sawmill', dataList: sawmillList, valueField: 'prosesSawmill', targetSetting: 'targetSawmillHarian', stokAwal: 0, unit: 'm³' },
-        { id: 'planer', label: 'Planer Bagus', dataList: produksiList, valueField: (item) => (item.shift1?.planerBagus||0)+(item.shift2?.planerBagus||0), targetSetting: 'targetPlaner', stokAwal: 0, unit: 'm³' },
-        { id: 'ripsaw', label: 'Ripsaw Input', dataList: produksiList, valueField: (item) => (item.shift1?.ripsawIn||0)+(item.shift2?.ripsawIn||0), targetSetting: 'targetRipsaw', stokAwal: 0, unit: 'm³' },
-        { id: 'seri', label: 'Seri Hasil', dataList: produksiList, valueField: (item) => (item.shift1?.seri||0)+(item.shift2?.seri||0), targetSetting: 'targetSeri', stokAwal: 0, unit: 'lbr' },
-        { id: 'press', label: 'Press Hasil', dataList: produksiList, valueField: (item) => (item.shift1?.press||0)+(item.shift2?.press||0), targetSetting: 'targetPress', stokAwal: 0, unit: 'lbr' },
-        { id: 'sezing', label: 'Sezing', dataList: sezingList, valueField: 'volume', targetSetting: 'targetSezingHarian', stokAwal: 0, unit: 'm³' }
-    ];
-    
-    const targetHarianMap = {
-        targetKayuHarian: window.appSettings.targetKayuHarian || 30,
-        targetSawmillHarian: window.appSettings.targetSawmillHarian || 25,
-        targetPlaner: window.appSettings.targetPlaner || 12,
-        targetRipsaw: window.appSettings.targetRipsaw || 13,
-        targetSeri: window.appSettings.targetSeri || 700,
-        targetPress: window.appSettings.targetPress || 700,
-        targetSezingHarian: window.appSettings.targetSezingHarian || 15
+    });
+};
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITY
+// ═══════════════════════════════════════════════════════════════
+function hexAlpha(hex, alpha) {
+    // Convert color name/var to rgba via approximation
+    const map = {
+        '#ff9f43': `rgba(255,159,67,${alpha})`,
+        '#d4a017': `rgba(212,160,23,${alpha})`,
+        '#e8c84a': `rgba(232,200,74,${alpha})`,
+        '#60a5fa': `rgba(96,165,250,${alpha})`,
+        '#a78bfa': `rgba(167,139,250,${alpha})`,
+        '#38bdf8': `rgba(56,189,248,${alpha})`,
+        '#4ade80': `rgba(74,222,128,${alpha})`,
     };
-    
-    // Rendemen sawmill berdasarkan bulan yang dipilih
-    const totalProsesSawmillBulan = sawmillList.filter(s => s.tanggal && s.tanggal >= bulanIni && s.tanggal <= endDate).reduce((s, lap) => s + (lap.prosesSawmill || 0), 0);
-    const totalPaletBasahBulan = sawmillList.filter(s => s.tanggal && s.tanggal >= bulanIni && s.tanggal <= endDate).reduce((s, lap) => s + (lap.totalVolumePalet || 0), 0);
-    const rendemenSawmill = totalProsesSawmillBulan > 0 ? (totalPaletBasahBulan / totalProsesSawmillBulan * 100) : 0;
-    const targetRendemenMin = window.appSettings.rendemenMin || 65;
-    const rendemenColor = rendemenSawmill >= targetRendemenMin ? 'var(--green)' : 'var(--orange)';
-    const activeDaysSawmill = countActiveDays(sawmillList);
-    
-    let cardsHtml = [];
-    for (let cat of categories) {
-        const activeDays = countActiveDays(cat.dataList);
-        const targetPerHari = targetHarianMap[cat.targetSetting] || 0;
-        const totalTarget = targetPerHari * workingDays;
-        let totalRealisasi = 0;
-        if (typeof cat.valueField === 'function') {
-            totalRealisasi = cat.dataList.filter(item => item.tanggal && item.tanggal >= bulanIni && item.tanggal <= endDate).reduce((sum, item) => sum + cat.valueField(item), 0);
-        } else {
-            totalRealisasi = cat.dataList.filter(item => item.tanggal && item.tanggal >= bulanIni && item.tanggal <= endDate).reduce((sum, item) => sum + (parseFloat(item[cat.valueField]) || 0), 0);
-        }
-        if (cat.stokAwal && cat.id === 'kayu') totalRealisasi += cat.stokAwal;
-        const persen = totalTarget > 0 ? (totalRealisasi / totalTarget) * 100 : 0;
-        const persenColor = persen >= 100 ? 'var(--green)' : (persen >= 75 ? 'var(--gold)' : 'var(--orange)');
-        const statusIcon = persen >= 100 ? '✅' : (persen >= 75 ? '⚠️' : '🔴');
-        const statusText = persen >= 100 ? 'Melampaui target' : (persen >= 75 ? 'Menuju target' : 'Perlu ditingkatkan');
-        
-        cardsHtml.push(`
-            <div class="stat-card" style="text-align:center; display: flex; flex-direction: column; justify-content: space-between;">
-                <div>
-                    <div class="stat-card-label">${cat.label}</div>
-                    <div class="stat-card-value" style="font-size:28px; color:${persenColor};">${persen.toFixed(1)}%</div>
-                    <div style="font-size:11px; margin-top:6px;">${fmtDec(totalRealisasi, 1)} / ${fmtDec(totalTarget, 1)}</div>
-                    <progress value="${persen}" max="100" style="width:100%; height:6px; border-radius:3px; margin-top:8px;"></progress>
-                    <div style="font-size:10px; margin-top:4px;">${statusIcon} ${statusText}</div>
-                </div>
-                <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--gold-dim); font-size: 9px; color: var(--muted);">
-                    📆 Target: ${workingDays} hari kerja | Aktif: ${activeDays} hari | Target/hari: ${targetPerHari} ${cat.unit}
-                </div>
-            </div>
-        `);
-        
-        if (cat.id === 'sawmill') {
-            cardsHtml.push(`
-                <div class="stat-card" style="text-align:center; display: flex; flex-direction: column; justify-content: space-between;">
-                    <div>
-                        <div class="stat-card-label">🔄 Rendemen Sawmill</div>
-                        <div class="stat-card-value" style="font-size:28px; color:${rendemenColor};">${rendemenSawmill.toFixed(1)}%</div>
-                        <div style="font-size:11px; margin-top:6px;">Target min: ${targetRendemenMin}%</div>
-                        <progress value="${Math.min(rendemenSawmill, 100)}" max="100" style="width:100%; height:6px; border-radius:3px; margin-top:8px;"></progress>
-                        <div style="font-size:10px; margin-top:4px;">${rendemenSawmill >= targetRendemenMin ? '✅ Memenuhi target' : '⚠️ Di bawah target'}</div>
-                    </div>
-                    <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--gold-dim); font-size: 9px; color: var(--muted);">
-                        📆 Aktif: ${activeDaysSawmill} hari | ${fmtDec(totalProsesSawmillBulan, 1)} m³ proses → ${fmtDec(totalPaletBasahBulan, 1)} m³ palet
-                    </div>
-                </div>
-            `);
-        }
-    }
-    container.innerHTML = cardsHtml.join('');
-    document.getElementById("target-subtitle").innerHTML = `Bulan: ${bulan} · Target berdasarkan hari kerja (Senin-Sabtu)`;
+    return map[hex] || `rgba(200,200,200,${alpha})`;
 }
