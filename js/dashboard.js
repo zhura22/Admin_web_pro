@@ -35,9 +35,9 @@ function renderDashboardKPI() {
     const volKayuBln   = kayuBulan.reduce((a, k) => a + (k.volume||0), 0);
     const nilaiKayuBln = kayuBulan.reduce((a, k) => a + (k.harga||0), 0);
 
-    // Sawmill bulan — rendemen
-    const totVolIn  = sawBulan.reduce((a, s) => a + (s.volumeIn||0), 0);
-    const totPaletOk = sawBulan.reduce((a, s) => a + (s.paletBagus||0), 0);
+    // Sawmill bulan — rendemen (gunakan prosesSawmill)
+    const totVolIn  = sawBulan.reduce((a, s) => a + (s.prosesSawmill||0), 0);
+    const totPaletOk = sawBulan.reduce((a, s) => a + (s.totalVolumePalet||0), 0);
     const rendemenBln = totVolIn > 0 ? ((totPaletOk / totVolIn) * 100).toFixed(1) : '—';
     const rendemenCol = rendemenBln >= 65 ? 'var(--green)' : rendemenBln >= 55 ? 'var(--orange)' : 'var(--red)';
 
@@ -72,7 +72,7 @@ function renderDashboardKPI() {
     const ovenKosong  = ovenData.length - ovenAktif;
 
     // Order aktif
-    const totVolOrder = orderAktif.reduce((a, o) => a + (o.volume||0), 0);
+    const totVolOrder = orderAktif.reduce((a, o) => a + (o.volumeOrder||0), 0);
 
     // Alert logic
     const alerts = [];
@@ -231,7 +231,7 @@ window.renderTargetCapaian = function () {
         sezing:  cfg.targetSezingHarian  || 2
     };
 
-    // Aktual hari ini
+    // Aktual hari ini (perbaikan: sawmill menggunakan prosesSawmill)
     const kayuHari  = (window.kayuList||[]).filter(k => k.tanggal === hari);
     const sawHari   = (window.sawmillList||[]).filter(s => s.tanggal === hari);
     const prodHari  = (window.produksiList||[]).filter(p => p.tanggal === hari);
@@ -247,7 +247,7 @@ window.renderTargetCapaian = function () {
 
     const aktual = {
         kayu:    kayuHari.reduce((a,k) => a+(k.volume||0), 0),
-        sawmill: sawHari.reduce((a,s)  => a+(s.volumeIn||0), 0),
+        sawmill: sawHari.reduce((a,s)  => a+(s.prosesSawmill||0), 0), // <-- perbaikan
         planer:  planerH,
         press:   pressH,
         seri:    seriH,
@@ -302,9 +302,9 @@ window.renderTargetCharts = function () {
         });
     }
 
-    // Data per hari
+    // Data per hari (perbaikan: sawmill menggunakan prosesSawmill)
     const kayuPerHari    = sumPerHari(window.kayuList||[], 'tanggal', k => k.volume||0);
-    const sawmillPerHari = sumPerHari(window.sawmillList||[], 'tanggal', s => s.volumeIn||0);
+    const sawmillPerHari = sumPerHari(window.sawmillList||[], 'tanggal', s => s.prosesSawmill||0);
 
     let prodByDate = {};
     (window.produksiList||[]).forEach(p => {
@@ -424,11 +424,11 @@ window.renderTrendCharts = function () {
     }
     const labels = days.map(d => d.slice(5)); // MM-DD
 
-    // Rendemen per hari
+    // Rendemen per hari (gunakan prosesSawmill)
     const rendemenData = days.map(d => {
         const sawDay = (window.sawmillList||[]).filter(s => s.tanggal === d);
-        const vIn    = sawDay.reduce((a,s) => a+(s.volumeIn||0), 0);
-        const pOk    = sawDay.reduce((a,s) => a+(s.paletBagus||0), 0);
+        const vIn    = sawDay.reduce((a,s) => a+(s.prosesSawmill||0), 0);
+        const pOk    = sawDay.reduce((a,s) => a+(s.totalVolumePalet||0), 0);
         return vIn > 0 ? parseFloat((pOk/vIn*100).toFixed(1)) : null;
     });
 
@@ -442,10 +442,10 @@ window.renderTrendCharts = function () {
         return tot || null;
     });
 
-    // Stok kayu kumulatif (running total masuk - sawmill)
+    // Stok kayu kumulatif (masuk - sawmill proses)
     const stokData = days.map((d, i) => {
         const masukSampai = (window.kayuList||[]).filter(k => k.tanggal <= d).reduce((a,k) => a+(k.volume||0), 0);
-        const prosesedSampai = (window.sawmillList||[]).filter(s => s.tanggal <= d).reduce((a,s) => a+(s.volumeIn||0), 0);
+        const prosesedSampai = (window.sawmillList||[]).filter(s => s.tanggal <= d).reduce((a,s) => a+(s.prosesSawmill||0), 0);
         return parseFloat((masukSampai - prosesedSampai).toFixed(2));
     });
 
@@ -565,7 +565,6 @@ window.renderTrendCharts = function () {
 // UTILITY
 // ═══════════════════════════════════════════════════════════════
 function hexAlpha(hex, alpha) {
-    // Convert color name/var to rgba via approximation
     const map = {
         '#ff9f43': `rgba(255,159,67,${alpha})`,
         '#d4a017': `rgba(212,160,23,${alpha})`,

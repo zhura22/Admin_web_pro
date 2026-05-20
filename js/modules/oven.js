@@ -160,9 +160,9 @@ function renderChamberAktif(ch, data, historyCount) {
 
         <!-- Tombol Aksi -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-sm" onclick="openOvenEditForm(${data.id})">✏️ Edit</button>
-            <button class="btn btn-sm" style="background:rgba(74,222,128,0.15);color:var(--green);border-color:rgba(74,222,128,0.3);" onclick="selesaikanOven(${data.id})">✅ Selesai</button>
-            <button class="btn btn-del btn-sm" onclick="hapusOven(${data.id})">🗑️</button>
+            <button class="btn btn-secondary btn-sm" onclick="openOvenEditForm('${data.id}')">✏️ Edit</button>
+            <button class="btn btn-sm" style="background:rgba(74,222,128,0.15);color:var(--green);border-color:rgba(74,222,128,0.3);" onclick="selesaikanOven('${data.id}')">✅ Selesai</button>
+            <button class="btn btn-del btn-sm" onclick="hapusOven('${data.id}')">🗑️</button>
         </div>
     </div>`;
 }
@@ -192,8 +192,9 @@ function renderChamberKosong(ch, historyCount) {
 // 3. FORM INPUT / EDIT
 // ═══════════════════════════════════════════════════════
 window.openOvenInputForm = function (chamber) {
-    const openList = [...new Set((window.sawmillList || []).map(s => s.openNo).filter(Boolean))];
-    const opts = openList.map(no => `<option value="${no}">${no}</option>`).join('');
+    const sawmill   = window.sawmillList || [];
+    const openList  = [...new Set(sawmill.map(s => s.openNo).filter(Boolean))];
+    const opts      = openList.map(no => `<option value="${no}">${no}</option>`).join('');
 
     showModal(`🔥 Isi Chamber ${chamber}`, `
         <div class="grid2">
@@ -201,7 +202,7 @@ window.openOvenInputForm = function (chamber) {
                 <select id="oven-openno"><option value="">-- Pilih --</option>${opts}</select>
             </div>
             <div class="field"><label>Volume (m³) *</label>
-                <input type="number" step="any" id="oven-volume" placeholder="0.00">
+                <input type="number" step="any" id="oven-volume" placeholder="Otomatis dari Open No.">
             </div>
             <div class="field"><label>Tanggal Masuk *</label>
                 <input type="date" id="oven-tgl-mulai" value="${today()}">
@@ -219,17 +220,51 @@ window.openOvenInputForm = function (chamber) {
         () => saveOvenInput(chamber)
     );
 
-    // Auto-isi target selesai
-    document.getElementById('oven-tgl-mulai')?.addEventListener('change', e => {
-        const target = addHari(e.target.value, DURASI_NORMAL_HARI);
-        const tEl = document.getElementById('oven-tgl-target');
-        if (tEl && !tEl.value) tEl.value = target;
-    });
+    // ── Event listeners dipasang SETELAH showModal agar elemen sudah ada di DOM ──
+    setTimeout(() => {
+        // Auto-isi Volume & catatan saat Open No. dipilih
+        document.getElementById('oven-openno')?.addEventListener('change', function () {
+            const selected = this.value;
+            if (!selected) return;
 
-    // Set default target selesai
-    const defTarget = addHari(today(), DURASI_NORMAL_HARI);
-    const tEl = document.getElementById('oven-tgl-target');
-    if (tEl) tEl.value = defTarget;
+            const rows = sawmill.filter(s => s.openNo === selected);
+            if (!rows.length) return;
+
+            // Gunakan totalVolumePalet jika ada, fallback ke volume
+            const totalVol = rows.reduce((acc, s) =>
+                acc + (parseFloat(s.totalVolumePalet || s.volume) || 0), 0);
+            const volEl = document.getElementById('oven-volume');
+            if (volEl && !volEl.value && totalVol > 0) volEl.value = totalVol.toFixed(4);
+
+            // Auto-isi tanggal dari tanggal laporan sawmill
+            const tglOvenEl = document.getElementById('oven-tgl-mulai');
+            const latestRow = rows.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''))[0];
+            if (tglOvenEl && latestRow?.tanggal) tglOvenEl.value = latestRow.tanggal;
+
+            // Auto-isi target selesai
+            const tglMulaiVal = document.getElementById('oven-tgl-mulai')?.value || today();
+            const tEl = document.getElementById('oven-tgl-target');
+            if (tEl) tEl.value = addHari(tglMulaiVal, DURASI_NORMAL_HARI);
+
+            // Auto-isi catatan
+            const catatanEl = document.getElementById('oven-catatan');
+            if (catatanEl && !catatanEl.value) {
+                const keterangan = [...new Set(rows.map(s =>
+                    s.jenis || s.keterangan || s.grade || '').filter(Boolean))].join(', ');
+                if (keterangan) catatanEl.value = keterangan;
+            }
+        });
+
+        // Auto-isi target selesai saat tanggal masuk berubah manual
+        document.getElementById('oven-tgl-mulai')?.addEventListener('change', e => {
+            const tEl = document.getElementById('oven-tgl-target');
+            if (tEl) tEl.value = addHari(e.target.value, DURASI_NORMAL_HARI);
+        });
+
+        // Set default target selesai
+        const tEl = document.getElementById('oven-tgl-target');
+        if (tEl && !tEl.value) tEl.value = addHari(today(), DURASI_NORMAL_HARI);
+    }, 50);
 };
 
 function saveOvenInput(chamber) {
@@ -268,10 +303,11 @@ function saveOvenInput(chamber) {
 
 window.openOvenEditForm = function (id) {
     const item = (window.ovenList || []).find(o => o.id === id);
-    if (!item) return;
+    if (!item) { toast('⚠️ Data tidak ditemukan!'); return; }
 
-    const openList = [...new Set((window.sawmillList || []).map(s => s.openNo).filter(Boolean))];
-    const opts = openList.map(no => `<option value="${no}"${no === item.openNo ? ' selected' : ''}>${no}</option>`).join('');
+    const sawmill  = window.sawmillList || [];
+    const openList = [...new Set(sawmill.map(s => s.openNo).filter(Boolean))];
+    const opts     = openList.map(no => `<option value="${no}"${no === item.openNo ? ' selected' : ''}>${no}</option>`).join('');
 
     showModal(`✏️ Edit Chamber ${item.chamber}`, `
         <div class="grid2">
@@ -297,10 +333,10 @@ window.openOvenEditForm = function (id) {
         () => {
             item.openNo    = document.getElementById('oven-openno')?.value || item.openNo;
             item.volume    = parseFloat(document.getElementById('oven-volume')?.value) || item.volume;
-            item.tglMulai  = document.getElementById('oven-tgl-mulai')?.value || item.tglMulai;
+            item.tglMulai  = document.getElementById('oven-tgl-mulai')?.value  || item.tglMulai;
             item.tglTarget = document.getElementById('oven-tgl-target')?.value || '';
-            item.suhu      = parseFloat(document.getElementById('oven-suhu')?.value) || null;
-            item.catatan   = document.getElementById('oven-catatan')?.value || '';
+            item.suhu      = parseFloat(document.getElementById('oven-suhu')?.value)  || null;
+            item.catatan   = document.getElementById('oven-catatan')?.value    || '';
             persistAll();
             renderOven();
             logActivity('Edit', 'Oven', `Chamber ${item.chamber}`);
@@ -308,6 +344,19 @@ window.openOvenEditForm = function (id) {
             return true;
         }
     );
+
+    // ── Auto-isi volume saat Open No. diubah — dipasang SETELAH showModal ──
+    setTimeout(() => {
+        document.getElementById('oven-openno')?.addEventListener('change', function () {
+            const selected = this.value;
+            if (!selected) return;
+            const rows = sawmill.filter(s => s.openNo === selected);
+            if (!rows.length) return;
+            const totalVol = rows.reduce((acc, s) => acc + (parseFloat(s.totalVolumePalet || s.volume) || 0), 0);
+            const volEl = document.getElementById('oven-volume');
+            if (volEl) volEl.value = totalVol > 0 ? totalVol.toFixed(4) : volEl.value;
+        });
+    }, 50);
 };
 
 // ═══════════════════════════════════════════════════════
@@ -413,10 +462,10 @@ window.renderOvenHistory = function () {
             : `<span style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2);padding:2px 8px;border-radius:12px;font-size:10px;">✓ Selesai</span>`;
 
         const aksi = o.status === 'isi'
-            ? `<button class="btn btn-sm" style="background:rgba(74,222,128,0.1);color:var(--green);border:none;" onclick="selesaikanOven(${o.id})">✅</button>
-               <button class="btn btn-edit btn-sm" onclick="openOvenEditForm(${o.id})">✏️</button>
-               <button class="btn btn-del btn-sm" onclick="hapusOven(${o.id})">🗑️</button>`
-            : `<button class="btn btn-del btn-sm" onclick="hapusOven(${o.id})">🗑️</button>`;
+            ? `<button class="btn btn-sm" style="background:rgba(74,222,128,0.1);color:var(--green);border:none;" onclick="selesaikanOven('${o.id}')">✅</button>
+               <button class="btn btn-edit btn-sm" onclick="openOvenEditForm('${o.id}')">✏️</button>
+               <button class="btn btn-del btn-sm" onclick="hapusOven('${o.id}')">🗑️</button>`
+            : `<button class="btn btn-del btn-sm" onclick="hapusOven('${o.id}')">🗑️</button>`;
 
         return `<tr>
             <td><b style="color:var(--gold)">Chamber ${o.chamber}</b></td>

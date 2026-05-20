@@ -29,9 +29,9 @@ function getRekapData(bulan) {
     const volKayu    = kayu.reduce((a,k) => a+(k.volume||0), 0);
     const nilaiKayu  = kayu.reduce((a,k) => a+(k.harga||0),  0);
 
-    // Sawmill
-    const volSawIn   = sawmill.reduce((a,s) => a+(s.volumeIn  ||0), 0);
-    const volPaletOk = sawmill.reduce((a,s) => a+(s.paletBagus||0), 0);
+    // Sawmill (perbaikan: prosesSawmill)
+    const volSawIn   = sawmill.reduce((a,s) => a+(s.prosesSawmill||0), 0);
+    const volPaletOk = sawmill.reduce((a,s) => a+(s.totalVolumePalet||0), 0);
     const rendemen   = volSawIn > 0 ? (volPaletOk / volSawIn * 100) : 0;
 
     // Produksi
@@ -60,8 +60,6 @@ function getRekapData(bulan) {
     const volSezing  = sezing.reduce((a,s) => a+(s.volume||0), 0);
 
     // Efisiensi end-to-end: kayu masuk → press keluar
-    const ef2e       = volKayu > 0 ? (totPress / (volKayu * 500) * 100) : 0;
-    // (asumsi 1 m³ kayu menghasilkan ±500 lembar, bisa disesuaikan)
     const konversi   = volKayu > 0 ? (totPlaner / volKayu * 100) : 0;
 
     return {
@@ -227,7 +225,7 @@ function renderRekapCharts(bulan) {
     }
 
     const kayuHari   = daySum(window.kayuList||[],    'tanggal', k=>k.volume||0);
-    const sawHari    = daySum(window.sawmillList||[],  'tanggal', s=>s.volumeIn||0);
+    const sawHari    = daySum(window.sawmillList||[],  'tanggal', s=>s.prosesSawmill||0);
     const jualHari   = daySum(window.penjualanList||[],'tanggal', j=>j.volume||0);
 
     let prodByDate = {};
@@ -371,11 +369,11 @@ function renderRekapPerModul(bulan) {
         ${kayu2.map(k=>`<tr>
             <td>${fmtDate(k.tanggal)}</td>
             <td class="highlight">${k.openNo||'—'}</td>
-            <td>${k.namaSupplier||'—'}</td>
+            <td class="highlight">${k.suplier||'—'}</td>
             <td class="right">${fmtDec(k.volume||0,2)}</td>
             <td class="right">${fmtRp(k.harga||0)}</td>
         </tr>`).join('')}
-        ${!kayu2.length ? '<tr><td colspan="5" class="empty">Belum ada data</td></tr>':'' }
+        ${!kayu2.length ? '<tr><td colspan="5" class="empty">Belum ada数据</td></tr>':'' }
         </tbody></table>
     </div>`;
 
@@ -387,17 +385,17 @@ function renderRekapPerModul(bulan) {
             <th>Vol.Masuk</th><th>Palet Bagus</th><th>Rendemen</th>
         </tr></thead><tbody>
         ${saw2.map(s=>{
-            const r=s.volumeIn>0?(s.paletBagus/s.volumeIn*100).toFixed(1):'0.0';
+            const r=s.prosesSawmill>0?(s.totalVolumePalet/s.prosesSawmill*100).toFixed(1):'0.0';
             const rc=r>=65?'var(--green)':r>=55?'var(--orange)':'var(--red)';
             return `<tr>
                 <td>${fmtDate(s.tanggal)}</td>
                 <td class="highlight">${s.openNo||'—'}</td>
-                <td class="right">${fmtDec(s.volumeIn||0,2)} m³</td>
-                <td class="right">${fmtDec(s.paletBagus||0,2)} m³</td>
+                <td class="right">${fmtDec(s.prosesSawmill||0,2)} m³</td>
+                <td class="right">${fmtDec(s.totalVolumePalet||0,2)} m³</td>
                 <td class="right" style="color:${rc}">${r}%</td>
             </tr>`;
         }).join('')}
-        ${!saw2.length ? '<tr><td colspan="5" class="empty">Belum ada data</td></tr>':''}
+        ${!saw2.length ? '<tr><td colspan="5" class="empty">Belum ada数据</td></tr>':''}
         </tbody></table>
     </div>`;
 
@@ -415,7 +413,7 @@ function renderRekapPerModul(bulan) {
             <td class="right">${fmtDec(j.volume||0,2)}</td>
             <td class="right">${fmtRp(j.harga||0)}</td>
         </tr>`).join('')}
-        ${!penj2.length ? '<tr><td colspan="5" class="empty">Belum ada data</td></tr>':''}
+        ${!penj2.length ? '<tr><td colspan="5" class="empty">Belum ada数据</td></tr>':''}
         </tbody></table>
     </div>`;
 
@@ -554,8 +552,8 @@ window.exportRekapCSV = function () {
         ['Tanggal','Open No.','Vol.Masuk','Palet Bagus','Rendemen'],
         ...d.sawmill.map(s => [
             s.tanggal, s.openNo||'',
-            fmtDec(s.volumeIn||0,2), fmtDec(s.paletBagus||0,2),
-            s.volumeIn>0?(s.paletBagus/s.volumeIn*100).toFixed(1):0
+            fmtDec(s.prosesSawmill||0,2), fmtDec(s.totalVolumePalet||0,2),
+            s.prosesSawmill>0?(s.totalVolumePalet/s.prosesSawmill*100).toFixed(1):0
         ]),
         [],
         ['DETAIL PENJUALAN'],

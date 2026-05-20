@@ -434,6 +434,48 @@ function buildSawmillForm() {
     ['p-masuk','p-totalvolume'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', updateProduktivitas);
     });
+
+    // ── Auto-fill oven: saat chamber dipilih → isi volume & tanggal otomatis ──
+    document.getElementById('p-chamber')?.addEventListener('change', function () {
+        if (!this.value) return;
+        const volOvenEl = document.getElementById('p-volumeOven');
+        const tglOvenEl = document.getElementById('p-tanggalOven');
+        // Volume oven = total volume palet hari ini (jika belum diisi manual)
+        if (volOvenEl && !volOvenEl.value) {
+            const totalVol = parseFloat(document.getElementById('p-totalvolume')?.value) || 0;
+            if (totalVol > 0) volOvenEl.value = totalVol.toFixed(4);
+        }
+        // Tanggal oven = tanggal laporan hari ini (jika belum diisi manual)
+        if (tglOvenEl && !tglOvenEl.value) {
+            tglOvenEl.value = document.getElementById('p-tanggal')?.value || today();
+        }
+    });
+
+    // ── Saat total volume palet berubah → perbarui volume oven jika chamber sudah dipilih ──
+    const origUpdateTotal = updateTotalDanRendemen;
+    const pTotalVolumeEl = document.getElementById('p-totalvolume');
+    const observer = new MutationObserver(() => {
+        const chamberEl = document.getElementById('p-chamber');
+        const volOvenEl = document.getElementById('p-volumeOven');
+        if (chamberEl?.value && volOvenEl) {
+            const newVol = parseFloat(pTotalVolumeEl?.value) || 0;
+            if (newVol > 0) volOvenEl.value = newVol.toFixed(4);
+        }
+    });
+    if (pTotalVolumeEl) observer.observe(pTotalVolumeEl, { attributes: true, attributeFilter: ['value'] });
+
+    // Patch updateTotalDanRendemen agar volume oven ikut update
+    window._origUpdateTotalDanRendemen = updateTotalDanRendemen;
+    window.updateTotalDanRendemen = function () {
+        window._origUpdateTotalDanRendemen();
+        const chamberEl = document.getElementById('p-chamber');
+        const volOvenEl = document.getElementById('p-volumeOven');
+        const totalVolEl = document.getElementById('p-totalvolume');
+        if (chamberEl?.value && volOvenEl && totalVolEl) {
+            const v = parseFloat(totalVolEl.value) || 0;
+            if (v > 0) volOvenEl.value = v.toFixed(4);
+        }
+    };
 }
 
 function updateProduktivitas() {
@@ -562,47 +604,76 @@ window.saveSawmill = function() {
         logActivity('Simpan', 'Sawmill', `${tgl} Rendemen:${item.randemanSawmill.toFixed(1)}%`);
     }
 
-    // Oven handling (sama seperti sebelumnya)
+    // ── Oven handling — format disesuaikan dengan oven.js ──
     if (selectedChamber && volumeOven > 0 && tanggalOven) {
         const ovenChamber = parseInt(selectedChamber);
+
+        // Helper: hitung tglTarget (+7 hari standar pengeringan)
+        const _addHari = (tgl, hari) => {
+            const d = new Date(tgl);
+            d.setDate(d.getDate() + hari);
+            return d.toISOString().split('T')[0];
+        };
+        const DURASI_OVEN = (typeof DURASI_NORMAL_HARI !== 'undefined') ? DURASI_NORMAL_HARI : 7;
+        const tglTarget = _addHari(tanggalOven, DURASI_OVEN);
+
+        // Buat entry ovenList dengan format yang sesuai oven.js
+        const buatEntryOven = (existingId) => ({
+            id:         existingId || uid(),
+            chamber:    ovenChamber,
+            openNo:     item.openNo,
+            volume:     volumeOven,
+            tglMulai:   tanggalOven,
+            tglTarget:  tglTarget,
+            tglSelesai: '',
+            suhu:       null,
+            catatan:    `Auto dari sawmill ${tgl}`,
+            status:     'isi'
+        });
+
+        if (!window.ovenList) window.ovenList = [];
+
         if (sawmillEditId) {
-            const existH = (window.ovenHistoryList||[]).find(h => h.openNo===item.openNo && h.status==='active');
-            if (existH) {
-                existH.chamber = ovenChamber; existH.volumeMasuk = volumeOven;
-                existH.tanggalMasuk = tanggalOven; existH.palet = hasilPalet;
-                const oi = (window.ovenList||[]).findIndex(o=>o.chamber===ovenChamber);
-                if (oi !== -1) window.ovenList[oi] = { chamber:ovenChamber, volume:volumeOven, tanggalMulai:tanggalOven, status:'active' };
+            // Mode edit: cari entri oven yang sudah ada berdasarkan openNo
+            const existIdx = window.ovenList.findIndex(o => o.openNo === item.openNo && o.status === 'isi');
+            if (existIdx !== -1) {
+                // Update entry yang ada
+                const old = window.ovenList[existIdx];
+                window.ovenList[existIdx] = { ...buatEntryOven(old.id), suhu: old.suhu, catatan: old.catatan };
             } else {
-                window.ovenHistoryList.push({ id:uid(), chamber:ovenChamber, openNo:item.openNo, volumeMasuk:volumeOven, tanggalMasuk:tanggalOven, tanggalSelesai:'', status:'active', palet:hasilPalet });
-                const oi = (window.ovenList||[]).findIndex(o=>o.chamber===ovenChamber);
-                if (oi !== -1) window.ovenList[oi] = { chamber:ovenChamber, volume:volumeOven, tanggalMulai:tanggalOven, status:'active' };
-                else window.ovenList.push({ chamber:ovenChamber, volume:volumeOven, tanggalMulai:tanggalOven, status:'active' });
+                // Tambah baru (kemungkinan openNo berubah)
+                const chamberIdx = window.ovenList.findIndex(o => o.chamber === ovenChamber && o.status === 'isi');
+                if (chamberIdx !== -1) window.ovenList[chamberIdx] = buatEntryOven(window.ovenList[chamberIdx].id);
+                else window.ovenList.push(buatEntryOven());
             }
         } else {
-            const existActive = (window.ovenList||[]).find(o=>o.chamber===ovenChamber&&o.status==='active');
-            if (existActive && !confirmDialog(`Chamber ${ovenChamber} masih aktif. Tetap ganti?`)) {}
-            else {
-                if (existActive) {
-                    const hc = (window.ovenHistoryList||[]).find(h=>h.chamber===ovenChamber&&h.status==='active');
-                    if (hc) { hc.status='completed'; hc.tanggalSelesai=today(); }
-                    existActive.status='empty';
+            // Mode tambah baru
+            const existActive = window.ovenList.find(o => o.chamber === ovenChamber && o.status === 'isi');
+            if (existActive) {
+                if (!confirmDialog(`Chamber ${ovenChamber} masih aktif (Open ${existActive.openNo || '?'}). Ganti data oven chamber ini?`)) {
+                    // User batalkan — skip oven
+                    persistAll();
+                    window.closeSawmillForm();
+                    window.renderSawmill();
+                    if (typeof window.renderOven === 'function') window.renderOven();
+                    if (typeof window.renderBatch === 'function') window.renderBatch();
+                    toast('✅ Laporan sawmill disimpan! (Oven tidak diubah)');
+                    return;
                 }
-                const existO = (window.ovenHistoryList||[]).find(h=>h.openNo===item.openNo&&h.status==='active');
-                if (existO) { existO.status='completed'; existO.tanggalSelesai=today(); }
-                window.ovenHistoryList.push({ id:uid(), chamber:ovenChamber, openNo:item.openNo, volumeMasuk:volumeOven, tanggalMasuk:tanggalOven, tanggalSelesai:'', status:'active', palet:hasilPalet });
-                const oi = (window.ovenList||[]).findIndex(o=>o.chamber===ovenChamber);
-                if (oi !== -1) window.ovenList[oi] = { chamber:ovenChamber, volume:volumeOven, tanggalMulai:tanggalOven, status:'active' };
-                else window.ovenList.push({ chamber:ovenChamber, volume:volumeOven, tanggalMulai:tanggalOven, status:'active' });
+                // Tandai chamber lama sebagai selesai
+                existActive.status    = 'selesai';
+                existActive.tglSelesai = today();
             }
+            window.ovenList.push(buatEntryOven());
         }
     }
 
     persistAll();
     window.closeSawmillForm();
     window.renderSawmill();
-    if (typeof window.renderOvenStatus === 'function') window.renderOvenStatus();
+    if (typeof window.renderOven       === 'function') window.renderOven();   // sync ke tab oven
     if (typeof window.renderBatch      === 'function') window.renderBatch();
-    toast('✅ Laporan sawmill disimpan!');
+    toast('✅ Laporan sawmill disimpan! Data oven diperbarui otomatis.');
 };
 
 // ─────────────────────────────────────────────────
@@ -615,7 +686,7 @@ window.deleteSawmill = function(id) {
     window.sawmillList = (window.sawmillList||[]).filter(x=>x.id!==id);
     persistAll();
     window.renderSawmill();
-    if (typeof window.renderOvenStatus === 'function') window.renderOvenStatus();
+    if (typeof window.renderOven       === 'function') window.renderOven();   // sync ke tab oven
     if (typeof window.renderBatch      === 'function') window.renderBatch();
     toast('🗑️ Laporan dihapus.');
 };

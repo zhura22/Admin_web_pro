@@ -1,5 +1,4 @@
 // produksi.js — IMPROVED: tampilan lebih informatif, efisiensi, filter tanggal, chart
-// Perbaikan: grafik Tren Planer & Press per Hari sekarang berfungsi
 
 let produksiEditId = null;
 window._produksiSumberPalet = [];
@@ -13,9 +12,18 @@ function getProdEfisiensi(item) {
     const ripsawIn = (s1.ripsawIn||0) + (s2.ripsawIn||0);
     const press = (s1.press||0) + (s2.press||0);
     const seri = (s1.seri||0) + (s2.seri||0);
+    // Efisiensi ripsaw: berapa % dari planer yang masuk ripsaw
     const efRipsaw = planerBagus > 0 ? (ripsawIn / planerBagus * 100) : 0;
+    // Ratio press per seri
     const pressPerSeri = seri > 0 ? (press / seri).toFixed(2) : '-';
     return { efRipsaw, pressPerSeri };
+}
+
+function colorClass(val, thresholds) {
+    // thresholds: { good, warn } — nilai di atas thresholds.good = hijau, antara = kuning, di bawah = merah
+    if (val >= thresholds.good) return 'style="color:var(--green)"';
+    if (val >= thresholds.warn) return 'style="color:var(--orange)"';
+    return 'style="color:var(--red)"';
 }
 
 function miniBar(val, max, color) {
@@ -29,14 +37,14 @@ function miniBar(val, max, color) {
 // RENDER DAFTAR PRODUKSI (IMPROVED)
 // ═══════════════════════════════════════════════
 window.renderProduksi = function () {
-    const countEl = document.getElementById("produksi-count");
-    if (countEl) countEl.textContent = window.produksiList.length + " laporan";
+    document.getElementById("produksi-count").textContent = window.produksiList.length + " laporan";
     const container = document.getElementById("produksi-list");
     if (!window.produksiList.length) {
         container.innerHTML = '<div class="empty">📭 Belum ada laporan produksi</div>';
         return;
     }
 
+    // ── Filter by date range ──
     const from  = document.getElementById('prod-filter-from')?.value || '';
     const to    = document.getElementById('prod-filter-to')?.value || '';
     const srch  = (document.getElementById('prod-filter-search')?.value || '').toLowerCase();
@@ -51,6 +59,7 @@ window.renderProduksi = function () {
         return;
     }
 
+    // ── Summary bar (total filtered) ──
     let totPlanerBagus = 0, totPress = 0, totSeri = 0, totRipsaw = 0, totLimbah = 0, totReject = 0;
     list.forEach(l => {
         const s1 = l.shift1||{}, s2 = l.shift2||{};
@@ -66,12 +75,26 @@ window.renderProduksi = function () {
 
     const summaryBar = `
     <div class="summary-row" style="margin-bottom:16px;">
-        <div class="summary-card"><div class="summary-label">Total Laporan (Filter)</div><div class="summary-value">${list.length}</div></div>
-        <div class="summary-card"><div class="summary-label">Total Planer Bagus</div><div class="summary-value">${fmtDec(totPlanerBagus,2)} <span style="font-size:11px;color:var(--muted)">m³</span></div></div>
-        <div class="summary-card"><div class="summary-label">Total Press</div><div class="summary-value">${fmt(totPress)} <span style="font-size:11px;color:var(--muted)">lbr</span></div></div>
-        <div class="summary-card"><div class="summary-label">Efisiensi Ripsaw</div><div class="summary-value" style="color:${efColor}">${efTotal}%</div>${miniBar(parseFloat(efTotal), 100, efColor)}</div>
+        <div class="summary-card">
+            <div class="summary-label">Total Laporan (Filter)</div>
+            <div class="summary-value">${list.length}</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Total Planer Bagus</div>
+            <div class="summary-value">${fmtDec(totPlanerBagus,2)} <span style="font-size:11px;color:var(--muted)">m³</span></div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Total Press</div>
+            <div class="summary-value">${fmt(totPress)} <span style="font-size:11px;color:var(--muted)">lbr</span></div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Efisiensi Ripsaw</div>
+            <div class="summary-value" style="color:${efColor}">${efTotal}%</div>
+            ${miniBar(parseFloat(efTotal), 100, efColor)}
+        </div>
     </div>`;
 
+    // ── Cards ──
     const cards = list.map(l => {
         const s1 = l.shift1||{}, s2 = l.shift2||{};
         const planerBagus = (s1.planerBagus||0)+(s2.planerBagus||0);
@@ -81,17 +104,20 @@ window.renderProduksi = function () {
         const ripsawIn    = (s1.ripsawIn||0)+(s2.ripsawIn||0);
         const totalMasuk  = (s1.masuk||0)+(s2.masuk||0);
         const totalTidak  = (s1.tidakMasuk||0)+(s2.tidakMasuk||0);
+
         const { efRipsaw, pressPerSeri } = getProdEfisiensi(l);
         const efCol   = efRipsaw >= 80 ? 'var(--green)' : efRipsaw >= 60 ? 'var(--orange)' : 'var(--red)';
         const absensi = (totalMasuk + totalTidak) > 0 ? ((totalMasuk/(totalMasuk+totalTidak))*100).toFixed(0) : 100;
         const absFmt  = `${absensi}%`;
         const absCol  = absensi >= 90 ? 'var(--green)' : absensi >= 75 ? 'var(--orange)' : 'var(--red)';
+
         const sumberInfo = (l.asalPalet && l.asalPalet.length > 0)
             ? l.asalPalet.map(p => `<span style="background:var(--gold-dim);color:var(--gold);padding:2px 8px;border-radius:12px;font-size:10px;">Open ${p.openNo}: ${p.jumlahPalet} plt · ${fmtDec(p.volume,2)} m³</span>`).join(' ')
             : '<span style="color:var(--muted);font-size:10px;">—</span>';
 
         return `
         <div class="laporan-card" style="border-left:3px solid var(--gold);">
+            <!-- HEAD -->
             <div class="laporan-head" style="margin-bottom:12px;">
                 <div>
                     <div class="laporan-title">📅 ${fmtDate(l.tanggal)} &nbsp;·&nbsp; <span style="color:var(--gold-light)">${l.openNo || 'Tanpa Batch'}</span></div>
@@ -102,6 +128,8 @@ window.renderProduksi = function () {
                     <button class="btn btn-del btn-sm" onclick="deleteProduksi('${l.id}')">🗑️</button>
                 </div>
             </div>
+
+            <!-- KPI PILLS ROW -->
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
                 <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
                     <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Planer Bagus</div>
@@ -115,7 +143,7 @@ window.renderProduksi = function () {
                 </div>
                 <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
                     <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Efisiensi Ripsaw</div>
-                    <div style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:${efCol}">${efRipsaw.toFixed(1)}%</div>
+                    <div style="font-size:18px;font-weight:700;font-family:var(--font-mono);" style="color:${efCol}">${efRipsaw.toFixed(1)}%</div>
                     ${miniBar(efRipsaw, 100, efCol)}
                 </div>
                 <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
@@ -124,10 +152,14 @@ window.renderProduksi = function () {
                     <div style="font-size:10px;color:var(--muted);">Masuk: ${totalMasuk} / ${totalMasuk+totalTidak} orang</div>
                 </div>
             </div>
+
+            <!-- SHIFT CARDS -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
                 ${renderShiftMini('Shift 1 🕛', s1)}
                 ${renderShiftMini('Shift 2 🌙', s2)}
             </div>
+
+            <!-- FOOTER: Limbah, Reject, Keterangan -->
             <div class="stat-pills" style="padding-top:8px;border-top:1px solid var(--border);">
                 ${l.limbah ? `<div class="stat-pill"><span class="stat-label">♻️ Limbah</span>&nbsp;<span class="stat-val">${fmtDec(l.limbah,2)} m³</span></div>` : ''}
                 ${l.reject ? `<div class="stat-pill" style="border-color:rgba(248,113,113,0.3)"><span class="stat-label">❌ Reject</span>&nbsp;<span class="stat-val" style="color:var(--red)">${l.reject} pcs</span></div>` : ''}
@@ -161,7 +193,7 @@ function renderShiftMini(label, s) {
 }
 
 // ═══════════════════════════════════════════════
-// FILTER PANEL
+// FILTER PANEL (diinject ke dalam produksi-list tab)
 // ═══════════════════════════════════════════════
 function initProduksiFilterBar() {
     const listEl = document.getElementById('produksi-list');
@@ -184,9 +216,12 @@ function initProduksiFilterBar() {
 }
 
 window.resetProduksiFilter = function() {
-    document.getElementById('prod-filter-from') && (document.getElementById('prod-filter-from').value = '');
-    document.getElementById('prod-filter-to') && (document.getElementById('prod-filter-to').value = '');
-    document.getElementById('prod-filter-search') && (document.getElementById('prod-filter-search').value = '');
+    const f = document.getElementById('prod-filter-from');
+    const t = document.getElementById('prod-filter-to');
+    const s = document.getElementById('prod-filter-search');
+    if (f) f.value = '';
+    if (t) t.value = '';
+    if (s) s.value = '';
     window.renderProduksi();
 };
 
@@ -225,7 +260,7 @@ window.exportProduksiCSV = function() {
 };
 
 // ═══════════════════════════════════════════════
-// RANGKUMAN BULANAN (DENGAN CHART YANG BERFUNGSI)
+// RANGKUMAN BULANAN (IMPROVED)
 // ═══════════════════════════════════════════════
 function renderProduksiSummary() {
     const bulan = document.getElementById("produksi-summary-bulan")?.value || thisMonth();
@@ -240,7 +275,7 @@ function renderProduksiSummary() {
     let totPB=0, totPM=0, totRI=0, totSeri=0, totPress=0, totLimbah=0, totReject=0, totMasuk=0, totTidak=0;
     const shift1D = { pb:0, pm:0, ri:0, seri:0, press:0, masuk:0, tidak:0 };
     const shift2D = { pb:0, pm:0, ri:0, seri:0, press:0, masuk:0, tidak:0 };
-    const perHari = {}; // key = tanggal lengkap YYYY-MM-DD
+    const perHari = {};
 
     reports.forEach(p => {
         const s1 = p.shift1||{}, s2 = p.shift2||{};
@@ -260,7 +295,6 @@ function renderProduksiSummary() {
         shift2D.pb += s2.planerBagus||0; shift2D.pm += s2.planerMis||0; shift2D.ri += s2.ripsawIn||0;
         shift2D.seri += s2.seri||0; shift2D.press += s2.press||0; shift2D.masuk += s2.masuk||0; shift2D.tidak += s2.tidakMasuk||0;
 
-        // Simpan per hari dengan key tanggal lengkap
         perHari[p.tanggal] = { pB, pM, rI, seri:se, press:pr, limbah:p.limbah||0, reject:p.reject||0, masuk:ma, tidak:ti };
     });
 
@@ -330,8 +364,7 @@ function renderProduksiSummary() {
     </div>`;
 
     // PER HARI TABLE
-    const sortedDates = Object.keys(perHari).sort();
-    const hariRows = sortedDates.map(tgl => {
+    const hariRows = Object.keys(perHari).sort().map(tgl => {
         const d = perHari[tgl];
         const ef = d.pB > 0 ? (d.rI / d.pB * 100).toFixed(1) : '0.0';
         const efC = ef >= 80 ? 'var(--green)' : ef >= 60 ? 'var(--orange)' : 'var(--red)';
@@ -363,31 +396,28 @@ function renderProduksiSummary() {
         </table>
     </div>`;
 
-    // CHART SECTION (diperbaiki)
+    // CHART
     const chartSection = `
     <div class="section-head" style="margin-top:20px;">📈 Tren Planer & Press per Hari</div>
     <canvas id="chart-produksi-summary" height="150" style="background:var(--bg2);border-radius:10px;padding:12px;"></canvas>`;
 
     container.innerHTML = kpiSection + shiftTable + chartSection + perHariTable;
 
-    // Render chart setelah DOM update
+    // Render chart after DOM update
     setTimeout(() => {
         const ctx = document.getElementById('chart-produksi-summary');
         if (!ctx || !window.Chart) return;
+        const labels = Object.keys(perHari).sort().map(t => t.slice(5));
+        const pbData = labels.map(d => perHari[`${bulan}-${d}`]?.pB || 0);
+        const prData = labels.map(d => perHari[`${bulan}-${d}`]?.press || 0);
         if (ctx._chartInst) ctx._chartInst.destroy();
-
-        // Gunakan sortedDates untuk urutan yang benar
-        const labels = sortedDates.map(tgl => tgl.slice(5)); // "MM-DD" untuk label
-        const pbData = sortedDates.map(tgl => perHari[tgl].pB);
-        const prData = sortedDates.map(tgl => perHari[tgl].press);
-
         ctx._chartInst = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: labels,
+                labels,
                 datasets: [
-                    { label: 'Planer Bagus (m³)', data: pbData, backgroundColor: 'rgba(212,160,23,0.7)', borderColor: 'var(--gold)', borderWidth: 1, yAxisID: 'y', type: 'bar' },
-                    { label: 'Press (lbr)', data: prData, type: 'line', backgroundColor: 'rgba(96,165,250,0.15)', borderColor: 'var(--blue)', borderWidth: 2, pointRadius: 3, fill: true, yAxisID: 'y1', tension: 0.3 }
+                    { label: 'Planer Bagus (m³)', data: pbData, backgroundColor: 'rgba(212,160,23,0.7)', borderColor: 'var(--gold)', borderWidth: 1, yAxisID: 'y' },
+                    { label: 'Press (lbr)', data: prData, type: 'line', backgroundColor: 'rgba(96,165,250,0.15)', borderColor: 'var(--blue)', borderWidth: 2, pointRadius: 3, fill: true, yAxisID: 'y1' }
                 ]
             },
             options: {
@@ -401,11 +431,12 @@ function renderProduksiSummary() {
                 }
             }
         });
-    }, 150);
+    }, 100);
 }
 
 function kpiCard(label, value, color, icon) {
-    return `<div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;padding:14px 16px;">
+    return `
+    <div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;padding:14px 16px;">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">${icon} ${label}</div>
         <div style="font-size:20px;font-weight:700;color:${color};font-family:var(--font-mono);">${value}</div>
     </div>`;
@@ -461,8 +492,13 @@ function initProduksiSummary() {
         <div class="form-card">
             <div class="form-title">📊 Rangkuman Produksi per Bulan</div>
             <div class="grid2">
-                <div class="field"><label>Pilih Bulan</label><input type="month" id="produksi-summary-bulan" value="${thisMonth()}" onchange="renderProduksiSummary()"></div>
-                <div class="field"><button class="btn btn-primary" onclick="renderProduksiSummary()" style="margin-top:22px;">🔄 Tampilkan</button></div>
+                <div class="field">
+                    <label>Pilih Bulan</label>
+                    <input type="month" id="produksi-summary-bulan" value="${thisMonth()}" onchange="renderProduksiSummary()">
+                </div>
+                <div class="field">
+                    <button class="btn btn-primary" onclick="renderProduksiSummary()" style="margin-top:22px;">🔄 Tampilkan</button>
+                </div>
             </div>
             <div id="produksi-summary-content"></div>
         </div>`;
@@ -473,7 +509,7 @@ function initProduksiSummary() {
 }
 
 // ═══════════════════════════════════════════════
-// CRUD FORM (tidak diubah, tetap sama seperti sebelumnya)
+// CRUD FORM
 // ═══════════════════════════════════════════════
 window.openProduksiForm = function(item) {
     produksiEditId = item?.id || null;
@@ -481,14 +517,17 @@ window.openProduksiForm = function(item) {
     const container = document.getElementById("produksi-form-container");
     container.innerHTML = `
         <div class="form-title">${item ? "✏️ Edit" : "➕ Input"} Laporan Produksi</div>
+
         <div class="section-head">📅 Informasi Umum</div>
         <div class="grid2">
             <div class="field"><label>Tanggal *</label><input type="date" id="prod-tanggal" /></div>
             <div class="field"><label>Batch / Open No.</label><input type="text" id="prod-openno" placeholder="Contoh: Batch A atau OP-001" /></div>
         </div>
+
         <div class="section-head">📋 Sumber Palet (dari Oven)</div>
         <div id="sumber-palet-container"></div>
         <button class="btn btn-secondary btn-sm mt8" onclick="window.tambahSumberPalet()">+ Tambah Sumber Palet</button>
+
         <div class="section-head" style="background:linear-gradient(90deg,var(--gold-dim),transparent);padding:8px 12px;border-radius:6px;">🕛 SHIFT 1 — Siang</div>
         <div class="grid3">
             <div class="field"><label>Planer — Palet (plt)</label><input type="number" id="prod-s1-planer-palet" placeholder="0" /></div>
@@ -502,6 +541,7 @@ window.openProduksiForm = function(item) {
             <div class="field"><label>👷 Tenaga Masuk</label><input type="number" id="prod-s1-masuk" placeholder="0" /></div>
             <div class="field"><label>🚫 Tidak Masuk</label><input type="number" id="prod-s1-tidakmasuk" placeholder="0" /></div>
         </div>
+
         <div class="section-head" style="background:linear-gradient(90deg,rgba(96,165,250,0.12),transparent);padding:8px 12px;border-radius:6px;">🌙 SHIFT 2 — Malam</div>
         <div class="grid3">
             <div class="field"><label>Planer — Palet (plt)</label><input type="number" id="prod-s2-planer-palet" placeholder="0" /></div>
@@ -515,12 +555,15 @@ window.openProduksiForm = function(item) {
             <div class="field"><label>👷 Tenaga Masuk</label><input type="number" id="prod-s2-masuk" placeholder="0" /></div>
             <div class="field"><label>🚫 Tidak Masuk</label><input type="number" id="prod-s2-tidakmasuk" placeholder="0" /></div>
         </div>
+
         <div class="section-head">♻️ Limbah & Reject</div>
         <div class="grid3">
             <div class="field"><label>Limbah (m³)</label><input type="number" step="any" id="prod-limbah" placeholder="0.00" /></div>
             <div class="field"><label>Reject Board (pcs)</label><input type="number" id="prod-reject" placeholder="0" /></div>
             <div class="field"><label>Keterangan</label><input type="text" id="prod-keterangan" placeholder="Catatan opsional..." /></div>
         </div>
+
+        <!-- LIVE PREVIEW -->
         <div id="prod-live-preview" style="background:var(--gold-dim);border:1px solid var(--gold-dim);border-radius:8px;padding:12px;margin-top:16px;display:none;">
             <div style="font-size:10px;color:var(--gold-light);font-weight:700;text-transform:uppercase;margin-bottom:8px;">⚡ Preview Kalkulasi</div>
             <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;font-family:var(--font-mono);">
@@ -530,6 +573,7 @@ window.openProduksiForm = function(item) {
                 <span>Total Masuk: <b id="prev-masuk">0</b> orang</span>
             </div>
         </div>
+
         <div class="form-actions">
             <button class="btn btn-secondary" onclick="window.closeProduksiForm()">Batal</button>
             <button class="btn btn-primary" onclick="window.saveProduksi()">💾 Simpan</button>
@@ -562,18 +606,25 @@ window.openProduksiForm = function(item) {
         document.getElementById("prod-tanggal").value = today();
     }
     renderSumberPalet();
+
+    // Live preview listener
     const inputs = container.querySelectorAll('input[type="number"]');
     inputs.forEach(inp => inp.addEventListener('input', updateLivePreview));
     updateLivePreview();
+
     document.getElementById("produksi-input").classList.remove("hidden");
     document.getElementById("produksi-list").classList.add("hidden");
 };
 
 function updateLivePreview() {
-    const pB = (parseFloat(document.getElementById("prod-s1-planer-bagus")?.value)||0) + (parseFloat(document.getElementById("prod-s2-planer-bagus")?.value)||0);
-    const rI = (parseFloat(document.getElementById("prod-s1-ripsaw-in")?.value)||0) + (parseFloat(document.getElementById("prod-s2-ripsaw-in")?.value)||0);
-    const pr = (parseInt(document.getElementById("prod-s1-press")?.value)||0) + (parseInt(document.getElementById("prod-s2-press")?.value)||0);
-    const ma = (parseInt(document.getElementById("prod-s1-masuk")?.value)||0) + (parseInt(document.getElementById("prod-s2-masuk")?.value)||0);
+    const pB = (parseFloat(document.getElementById("prod-s1-planer-bagus")?.value)||0)
+             + (parseFloat(document.getElementById("prod-s2-planer-bagus")?.value)||0);
+    const rI = (parseFloat(document.getElementById("prod-s1-ripsaw-in")?.value)||0)
+             + (parseFloat(document.getElementById("prod-s2-ripsaw-in")?.value)||0);
+    const pr = (parseInt(document.getElementById("prod-s1-press")?.value)||0)
+             + (parseInt(document.getElementById("prod-s2-press")?.value)||0);
+    const ma = (parseInt(document.getElementById("prod-s1-masuk")?.value)||0)
+             + (parseInt(document.getElementById("prod-s2-masuk")?.value)||0);
     const ef = pB > 0 ? (rI/pB*100).toFixed(1) : '0.0';
     const prev = document.getElementById('prod-live-preview');
     if (!prev) return;
@@ -603,7 +654,7 @@ function renderSumberPalet() {
         c.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px 0;">Belum ada sumber palet. Klik "+ Tambah Sumber Palet".</p>';
         return;
     }
-    const openList = [...new Set((window.sawmillList || []).map(s => s.openNo).filter(Boolean))];
+    const openList = [...new Set(window.sawmillList.map(s => s.openNo).filter(Boolean))];
     c.innerHTML = window._produksiSumberPalet.map((s, i) => {
         const openOptions = openList.map(no => `<option value="${no}"${no === s.openNo ? ' selected' : ''}>${no}</option>`).join('');
         return `
@@ -624,7 +675,7 @@ window.closeProduksiForm = function() {
 };
 
 window.saveProduksi = function() {
-    const tgl = document.getElementById("prod-tanggal")?.value;
+    const tgl    = document.getElementById("prod-tanggal")?.value;
     const openNo = document.getElementById("prod-openno")?.value.trim();
     if (!tgl) { toast("⚠️ Tanggal wajib diisi!"); return; }
 
@@ -652,14 +703,14 @@ window.saveProduksi = function() {
         tidakMasuk:  readInt("prod-s2-tidakmasuk")
     };
     const item = {
-        id: produksiEditId || uid(),
-        tanggal: tgl,
+        id:        produksiEditId || uid(),
+        tanggal:   tgl,
         openNo,
         asalPalet: window._produksiSumberPalet.filter(s => s.openNo),
         shift1,
         shift2,
-        limbah: readFloat("prod-limbah"),
-        reject: readInt("prod-reject"),
+        limbah:    readFloat("prod-limbah"),
+        reject:    readInt("prod-reject"),
         keterangan: document.getElementById("prod-keterangan")?.value || ""
     };
 
@@ -673,9 +724,8 @@ window.saveProduksi = function() {
     persistAll();
     closeProduksiForm();
     renderProduksi();
-    if (typeof renderBatch === 'function') renderBatch();
-    if (typeof renderRekap === 'function') renderRekap();
-    if (typeof renderDashboard === 'function') renderDashboard();
+    renderBatch();
+    renderRekap();
     toast("✅ Laporan produksi disimpan!");
 };
 
@@ -686,9 +736,8 @@ window.deleteProduksi = function(id) {
     window.produksiList = window.produksiList.filter(x => x.id !== id);
     persistAll();
     renderProduksi();
-    if (typeof renderBatch === 'function') renderBatch();
-    if (typeof renderRekap === 'function') renderRekap();
-    if (typeof renderDashboard === 'function') renderDashboard();
+    renderBatch();
+    renderRekap();
     toast("🗑️ Laporan dihapus");
 };
 
@@ -703,6 +752,4 @@ window.editProduksi = function(id) {
 setTimeout(() => {
     initProduksiSummary();
     initProduksiFilterBar();
-    // Pastikan data tersedia
-    if (window.produksiList) renderProduksi();
 }, 500);
