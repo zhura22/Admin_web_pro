@@ -1,3 +1,4 @@
+// utils.js
 const DAYS = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
@@ -43,3 +44,26 @@ function filterByDateRange(items, awal, akhir) {
 function showHelp() {
     alert("📘 PANDUAN SISTEM PRODUKSI\n\n🏠 DASHBOARD: Ringkasan harian, stok real-time, target produksi, grafik tren 30 hari.\n\n🪵 PEMBELIAN KAYU: Catat setiap pembelian log (nota, suplier, volume, harga).\n\n📑 ORDER MASUK: Buat PO customer, lacak sisa volume.\n\n📋 LAPORAN SAWMILL: Input proses gergaji, hasil palet (dimensi otomatis hitung volume), kirim ke oven.\n\n🔥 STATUS OVEN: Monitor 7 chamber, riwayat pengeringan, selesaikan oven.\n\n📦 LAPORAN PRODUKSI: Input per shift, reject board, limbah, sumber palet dari oven.\n\n📏 SEZING & PENJUALAN: Catat hasil laminating board, penjualan dengan retur, terhubung ke order.\n\n🔗 BATCH TRACKING: Lacak aliran per openNo dari log hingga produk jadi.\n\n🧮 STOK OPNAME: Rekonsiliasi stok fisik vs sistem, termasuk rekonsiliasi sezing.\n\n📊 REKAP & ALIRAN: Filter tanggal custom, lihat aliran material dan rendemen.\n\n⚙️ PENGATURAN: Target produksi, batas stok, rendemen minimal.\n\n📁 EXPORT/IMPORT: Backup & restore semua data ke file JSON.\n\nUntuk bantuan lebih lanjut, hubungi administrator.");
 }
+
+// ========== FUNGSI STOK REALTIME ==========
+window.hitungStokRealtime = function() {
+    const ovenSelesai = (window.ovenList || [])
+        .filter(o => o.status === 'selesai')
+        .reduce((sum, o) => sum + (o.volume || 0), 0);
+    let totalPlaner = 0;
+    (window.produksiList || []).forEach(p => {
+        const s1 = p.shift1 || {}, s2 = p.shift2 || {};
+        totalPlaner += (s1.planerBagus || 0) + (s2.planerBagus || 0);
+    });
+    const stokKering = Math.max(0, ovenSelesai - totalPlaner);
+    const ovenAktif = (window.ovenList || []).filter(o => o.status === 'isi').length;
+    const ovenKosong = 7 - ovenAktif;
+    return { stokKering, ovenAktif, ovenKosong, totalPlaner, ovenSelesai };
+};
+
+// ========== FUNGSI GET ORDER TERPENUHI ==========
+window.getOrderTerpenuhi = function(orderId) {
+    return (window.penjualanList || [])
+        .filter(p => p.orderId === orderId)
+        .reduce((sum, p) => sum + ((p.volume || 0) - (p.retur || 0)), 0);
+};

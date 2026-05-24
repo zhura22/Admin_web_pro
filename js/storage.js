@@ -1,3 +1,4 @@
+// storage.js
 const loadData = (key) => {
     try {
         const raw = localStorage.getItem(key);
@@ -40,6 +41,20 @@ function loadAllData() {
     window.appSettings = loadData(STORAGE_KEYS.SETTINGS);
     window.boardStockList = loadData(STORAGE_KEYS.BOARDSTOCK);
 
+    // Bersihkan ovenList dari status 'empty' / 'kosong' dan duplikat
+    if (window.ovenList) {
+        window.ovenList = window.ovenList.filter(o => o.status !== 'empty' && o.status !== 'kosong');
+        const unique = new Map();
+        for (const o of window.ovenList) {
+            const existing = unique.get(o.chamber);
+            if (!existing || (o.status === 'isi' && existing.status !== 'isi')) {
+                unique.set(o.chamber, o);
+            }
+        }
+        window.ovenList = Array.from(unique.values());
+        window.ovenList.sort((a, b) => a.chamber - b.chamber);
+    }
+
     if (!window.appUsers || window.appUsers.length === 0) {
         window.appUsers = [{ id: 'adminDefault', username: 'karyamuda', password: '1234', role: 'admin', nama: 'Administrator' }];
         saveData(STORAGE_KEYS.USERS, window.appUsers);
@@ -63,12 +78,5 @@ function loadAllData() {
 
     if (!window.activityLog) window.activityLog = [];
 
-    const existingChambers = window.ovenList.map(o => o.chamber);
-    for (let i = 1; i <= 7; i++) {
-        if (!existingChambers.includes(i)) {
-            window.ovenList.push({ chamber: i, volume: 0, tanggalMulai: "", status: "empty" });
-        }
-    }
-    window.ovenList.sort((a, b) => a.chamber - b.chamber);
     persistAll();
 }

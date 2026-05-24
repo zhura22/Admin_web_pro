@@ -108,35 +108,61 @@ function renderSezingKPI() {
     });
     const tebalInfo = Object.entries(perTebal)
         .sort((a, b) => b[1] - a[1])
-        .map(([k, v]) => `<span class="badge-gold" style="font-size:9px;">${k}: ${fmtDec(v,2)} m³</span>`)
-        .join(' ');
+        .map(([k, v]) =>
+            `<span style="display:inline-flex;align-items:center;gap:4px;
+                          background:rgba(212,160,23,.13);color:var(--gold);
+                          border:1px solid rgba(212,160,23,.28);border-radius:20px;
+                          padding:3px 10px;font-size:10px;font-weight:600;
+                          font-family:var(--font-mono);">${k}: ${fmtDec(v,2)} m³</span>`)
+        .join('');
 
     const stok = getStokBoardRealtime();
 
     cont.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));
-                gap:12px;margin-bottom:14px;">
-        ${szKPI('📏 Sezing Bulan Ini',   fmtDec(totBln,2)+' m³',     'var(--gold)',       hariBln+' hari aktif')}
-        ${szKPI('📦 Sezing Total',        fmtDec(totAll,2)+' m³',     'var(--gold-light)', listAll.length+' sesi')}
-        ${szKPI('📈 Rata-rata/Hari',      rataHari+' m³',             'var(--blue)',        'Bulan ini')}
-        ${szKPI('🔩 Stok Board (Press)',  fmt(stok.totPress)+' lbr',  'var(--orange)',      'Total diproduksi')}
-        ${szKPI('💰 Sudah Terjual',       fmt(stok.totJual)+' lbr',   'var(--green)',       'Netto')}
-        ${szKPI('📦 Estimasi Sisa Stok',  fmt(stok.stokLbr)+' lbr',
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+                gap:12px;margin-bottom:16px;">
+        ${szKPI('📏 Sezing Bulan Ini',  fmtDec(totBln,2)+' m³',    'var(--gold)',
+                hariBln+' hari aktif')}
+        ${szKPI('📦 Sezing Total',      fmtDec(totAll,2)+' m³',    'var(--gold-light)',
+                listAll.length+' sesi')}
+        ${szKPI('📈 Rata-rata/Hari',    rataHari+' m³',             'var(--blue)',
+                'Bulan ini')}
+        ${szKPI('🔩 Stok (Press)',      fmt(stok.totPress)+' lbr',  'var(--orange)',
+                'Total diproduksi')}
+        ${szKPI('✅ Sudah Terjual',     fmt(stok.totJual)+' lbr',   'var(--green)',
+                'Netto')}
+        ${szKPI('📦 Estimasi Sisa',     fmt(stok.stokLbr)+' lbr',
             stok.stokLbr > 500 ? 'var(--green)' : stok.stokLbr > 100 ? 'var(--orange)' : 'var(--red)',
-            'Press - Jual')}
+            'Press − Jual')}
     </div>
-    ${tebalInfo ? `<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;">${tebalInfo}</div>` : ''}`;
+    ${tebalInfo
+        ? `<div style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;
+                        margin-bottom:16px;padding:10px 14px;
+                        background:var(--bg2);border:1px solid var(--border);
+                        border-radius:8px;">
+               <span style="font-size:10px;color:var(--muted);margin-right:2px;">
+                   Tebal bulan ini:
+               </span>
+               ${tebalInfo}
+           </div>`
+        : ''}`;
 }
 
 function szKPI(label, value, color, sub) {
     return `
-    <div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;
-                padding:13px 16px;">
+    <div style="background:var(--bg2);border:1px solid var(--gold-dim);
+                border-top:2px solid ${color};border-radius:12px;
+                padding:14px 18px;box-shadow:0 3px 12px rgba(0,0,0,.18);
+                position:relative;overflow:hidden;">
+        <div style="position:absolute;top:-12px;right:-12px;width:52px;height:52px;
+                    border-radius:50%;background:${color};opacity:.07;pointer-events:none;"></div>
         <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
-                    letter-spacing:.8px;">${label}</div>
-        <div style="font-size:18px;font-weight:700;color:${color};
-                    font-family:var(--font-mono);margin-top:5px;line-height:1.2;">${value}</div>
-        ${sub ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;">${sub}</div>` : ''}
+                    letter-spacing:.9px;font-weight:600;">${label}</div>
+        <div style="font-size:21px;font-weight:700;color:${color};
+                    font-family:var(--font-mono);margin-top:6px;line-height:1.1;
+                    letter-spacing:-.5px;">${value}</div>
+        ${sub ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;
+                             padding-top:5px;border-top:1px solid var(--border);">${sub}</div>` : ''}
     </div>`;
 }
 
@@ -156,7 +182,10 @@ window.openSezingForm = function (item) {
     if (!formEl) return;
 
     formEl.innerHTML = `
-        <div class="form-title">${item ? '✏️ Edit' : '📏 Input'} Hasil Sezing</div>
+        <div class="form-title" style="font-size:15px;font-weight:700;
+                                       color:var(--gold);margin-bottom:18px;">
+            ${item ? '✏️ Edit' : '📏 Input'} Hasil Sezing
+        </div>
         <div class="grid3">
             <div class="field">
                 <label>Tanggal *</label>
@@ -218,21 +247,25 @@ window.openSezingForm = function (item) {
 
         <!-- Live Preview -->
         <div id="sz-preview"
-            style="background:var(--gold-dim);border-radius:8px;padding:12px 16px;
-                   margin-top:12px;display:none;">
-            <div style="font-size:10px;color:var(--gold-light);font-weight:700;
-                        text-transform:uppercase;margin-bottom:6px;">⚡ Preview</div>
-            <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;
+            style="background:linear-gradient(135deg,rgba(212,160,23,.1),rgba(0,0,0,.1));
+                   border:1px solid rgba(212,160,23,.3);border-radius:10px;
+                   padding:12px 18px;margin-top:14px;display:none;">
+            <div style="font-size:9px;color:var(--gold);font-weight:700;
+                        text-transform:uppercase;letter-spacing:.9px;margin-bottom:8px;">
+                ⚡ Preview Kalkulasi
+            </div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;
                         font-family:var(--font-mono);">
-                <span>Volume: <b id="sz-prev-vol">0.000</b> m³</span>
-                <span>Lembar: <b id="sz-prev-pcs">0</b> pcs</span>
-                <span>Tebal/Lembar: <b id="sz-prev-ratio">—</b> mm·m³</span>
+                <span>Volume: <b style="color:var(--gold);" id="sz-prev-vol">0.000</b> m³</span>
+                <span>Lembar: <b style="color:var(--gold);" id="sz-prev-pcs">0</b> pcs</span>
+                <span>Rata-rata/Lembar: <b style="color:var(--gold);" id="sz-prev-ratio">—</b></span>
             </div>
         </div>
 
-        <div class="form-actions" style="margin-top:16px;">
-            <button class="btn btn-secondary" onclick="closeSezingForm()">Batal</button>
-            <button class="btn btn-primary"   onclick="window.saveSezing()">💾 Simpan</button>
+        <div class="form-actions" style="margin-top:18px;padding-top:14px;
+                                         border-top:1px solid var(--border);">
+            <button class="btn btn-secondary" onclick="closeSezingForm()">✕ Batal</button>
+            <button class="btn btn-primary"   onclick="window.saveSezing()">💾 Simpan Sezing</button>
         </div>`;
 
     document.getElementById('sezing-form-modal').classList.remove('hidden');
@@ -250,6 +283,8 @@ window.updateSezingPreview = function () {
         document.getElementById('sz-prev-pcs').textContent = pcs;
         document.getElementById('sz-prev-ratio').textContent =
             pcs > 0 && vol > 0 ? (vol / pcs * 1000).toFixed(2) + ' ltr/lbr' : '—';
+    } else {
+        prev.style.display = 'none';
     }
 };
 
@@ -329,61 +364,93 @@ window.renderSezingList = function () {
     );
 
     if (!list.length) {
-        cont.innerHTML = '<div class="empty">📭 Belum ada data sezing atau tidak sesuai filter</div>';
+        cont.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;color:var(--muted);">
+            <div style="font-size:32px;margin-bottom:8px;opacity:.5;">📭</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">
+                Belum ada data sezing
+            </div>
+            <div style="font-size:11px;">Ubah filter atau tambah data baru</div>
+        </div>`;
         return;
     }
 
     const rows = list.map(s => {
         const tebalBadge = s.ketebalan
-            ? `<span class="badge-gold" style="font-size:9px;">${s.ketebalan} mm</span>`
-            : '';
+            ? `<span style="background:rgba(212,160,23,.15);color:var(--gold);
+                             border:1px solid rgba(212,160,23,.3);border-radius:20px;
+                             padding:2px 8px;font-size:9px;font-weight:600;
+                             white-space:nowrap;">${s.ketebalan} mm</span>`
+            : '—';
         const jenisBadge = s.jenis
-            ? `<span class="badge-blue" style="font-size:9px;">${s.jenis}</span>`
-            : '';
+            ? `<span style="background:rgba(96,165,250,.15);color:var(--blue);
+                             border:1px solid rgba(96,165,250,.3);border-radius:20px;
+                             padding:2px 8px;font-size:9px;font-weight:600;">${s.jenis}</span>`
+            : '—';
         const shiftBadge = s.shift == 2
-            ? `<span class="badge-orange" style="font-size:9px;">🌙 S2</span>`
-            : `<span style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);
-                             padding:2px 6px;border-radius:12px;font-size:9px;">🕛 S1</span>`;
-        return `<tr>
+            ? `<span style="background:rgba(251,146,60,.15);color:var(--orange);
+                             border:1px solid rgba(251,146,60,.3);border-radius:20px;
+                             padding:2px 8px;font-size:9px;font-weight:600;">🌙 S2</span>`
+            : `<span style="background:var(--bg3);color:var(--muted);
+                             border:1px solid var(--border);border-radius:20px;
+                             padding:2px 8px;font-size:9px;font-weight:600;">🕛 S1</span>`;
+        return `<tr onmouseover="this.style.background='var(--bg3)'"
+                    onmouseout="this.style.background=''">
             <td>${fmtDate(s.tanggal)}</td>
-            <td class="highlight">${s.openNo || '—'}</td>
+            <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;
+                       color:var(--text);">${s.openNo || '—'}</td>
             <td>${tebalBadge}</td>
             <td>${jenisBadge}</td>
-            <td class="right" style="font-family:var(--font-mono);color:var(--gold);">
-                ${fmtDec(s.volume,3)}
+            <td style="text-align:right;font-family:var(--font-mono);
+                       color:var(--gold);font-weight:700;">${fmtDec(s.volume,3)}</td>
+            <td style="text-align:right;font-family:var(--font-mono);">
+                ${s.pcs ? fmt(s.pcs) : '—'}
             </td>
-            <td class="right">${s.pcs ? fmt(s.pcs) : '—'}</td>
-            <td>${s.operator || '—'}</td>
+            <td style="color:var(--text);font-size:11px;">${s.operator || '—'}</td>
             <td>${shiftBadge}</td>
             <td>${s.keterangan
-                ? `<span style="color:var(--muted);font-size:10px;">${escapeHtml(s.keterangan)}</span>`
+                ? `<span style="color:var(--muted);font-size:10px;font-style:italic;">
+                       ${escapeHtml(s.keterangan)}</span>`
                 : '—'}</td>
             <td>
-                <div class="flex gap4">
-                    <button class="btn btn-edit btn-sm" onclick="window.editSezing('${s.id}')">✏️</button>
-                    <button class="btn btn-del  btn-sm" onclick="window.deleteSezing('${s.id}')">🗑️</button>
+                <div style="display:flex;gap:4px;justify-content:center;">
+                    <button class="btn btn-edit btn-sm"
+                        title="Edit" onclick="window.editSezing('${s.id}')">✏️</button>
+                    <button class="btn btn-del  btn-sm"
+                        title="Hapus" onclick="window.deleteSezing('${s.id}')">🗑️</button>
                 </div>
             </td>
         </tr>`;
     }).join('');
 
     cont.innerHTML = `
-    <div class="section-head">📏 Daftar Hasil Sezing</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:3px;height:18px;background:var(--gold);
+                          border-radius:2px;display:inline-block;"></span>
+            <span style="font-size:13px;font-weight:700;color:var(--text);">
+                📏 Daftar Hasil Sezing
+            </span>
+            <span style="font-size:10px;background:rgba(212,160,23,.15);color:var(--gold);
+                         border:1px solid rgba(212,160,23,.3);border-radius:20px;
+                         padding:2px 8px;font-weight:600;">${list.length} entri</span>
+        </div>
+        <button style="display:inline-flex;align-items:center;gap:5px;
+                        background:rgba(96,165,250,.12);color:var(--blue);
+                        border:1px solid rgba(96,165,250,.3);border-radius:6px;
+                        padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;"
+                onclick="window.exportSezingCSV()">📥 Export CSV</button>
+    </div>
     <div class="table-wrap">
         <table style="font-size:12px;">
             <thead><tr>
                 <th>Tanggal</th><th>Open No.</th><th>Tebal</th><th>Jenis</th>
-                <th>Volume (m³)</th><th>Lembar</th><th>Operator</th>
-                <th>Shift</th><th>Keterangan</th><th>Aksi</th>
+                <th class="right">Volume (m³)</th><th class="right">Lembar</th>
+                <th>Operator</th><th>Shift</th><th>Keterangan</th><th>Aksi</th>
             </tr></thead>
             <tbody>${rows}</tbody>
         </table>
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-        <button class="btn btn-sm"
-            style="background:rgba(96,165,250,.12);color:var(--blue);
-                   border-color:rgba(96,165,250,.3);"
-            onclick="window.exportSezingCSV()">📥 Export CSV</button>
     </div>`;
 };
 
@@ -397,9 +464,13 @@ function renderBoardStockSummary() {
     const latest = getLatestBoardStock();
     if (latest.size === 0) {
         cont.innerHTML = `
-        <div style="background:var(--bg2);border:1px dashed var(--border);border-radius:10px;
-                    padding:20px;text-align:center;color:var(--muted);font-size:12px;">
-            📭 Belum ada stok board per PO. Input stok terbaru di bawah.
+        <div style="text-align:center;padding:32px 20px;background:var(--bg2);
+                    border:1px dashed var(--border);border-radius:12px;color:var(--muted);">
+            <div style="font-size:28px;margin-bottom:8px;opacity:.4;">📦</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px;">
+                Belum ada stok board per PO
+            </div>
+            <div style="font-size:11px;">Input stok fisik menggunakan form di bawah</div>
         </div>`;
         return;
     }
@@ -415,17 +486,22 @@ function renderBoardStockSummary() {
         const pctStok    = volOrder > 0 ? Math.min(100, stok / volOrder * 100)      : 0;
         const stokCol    = stok >= sisaOrder ? 'var(--green)' : stok > 0 ? 'var(--orange)' : 'var(--red)';
         const statusLabel = terpenuhi >= volOrder
-            ? `<span class="badge-green" style="font-size:9px;">✅ Lunas</span>`
-            : `<span class="badge-orange" style="font-size:9px;">⏳ Proses</span>`;
+            ? `<span style="background:rgba(74,222,128,.15);color:var(--green);
+                             border:1px solid rgba(74,222,128,.3);border-radius:20px;
+                             padding:2px 9px;font-size:9px;font-weight:700;">✅ Lunas</span>`
+            : `<span style="background:rgba(251,146,60,.15);color:var(--orange);
+                             border:1px solid rgba(251,146,60,.3);border-radius:20px;
+                             padding:2px 9px;font-size:9px;font-weight:700;">⏳ Proses</span>`;
 
         cards.push(`
-        <div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;
-                    padding:16px 18px;position:relative;overflow:hidden;">
-            <!-- Accent bar -->
-            <div style="position:absolute;top:0;left:0;right:0;height:2px;
+        <div style="background:var(--bg2);border:1px solid var(--gold-dim);
+                    border-radius:12px;padding:16px 18px;position:relative;
+                    overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.15);">
+            <!-- Accent bar top -->
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;
                         background:linear-gradient(90deg,${stokCol},transparent);"></div>
             <div style="display:flex;justify-content:space-between;align-items:flex-start;
-                        margin-bottom:10px;">
+                        margin-bottom:12px;">
                 <div>
                     <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;
                                 color:var(--gold);">${escapeHtml(order.kodePO)}</div>
@@ -438,26 +514,25 @@ function renderBoardStockSummary() {
 
             <!-- 3-col metrics -->
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-                <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;">
-                    <div style="font-size:9px;color:var(--muted);">Volume Order</div>
+                <div style="background:var(--bg3);border-radius:8px;padding:8px 10px;">
+                    <div style="font-size:9px;color:var(--muted);margin-bottom:3px;">Vol. Order</div>
                     <div style="font-size:14px;font-weight:700;color:var(--text);
                                 font-family:var(--font-mono);">
-                        ${fmtDec(volOrder,2)} <span style="font-size:9px;">m³</span>
+                        ${fmtDec(volOrder,2)}<span style="font-size:9px;color:var(--muted);"> m³</span>
                     </div>
                 </div>
-                <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;">
-                    <div style="font-size:9px;color:var(--muted);">Terpenuhi</div>
+                <div style="background:var(--bg3);border-radius:8px;padding:8px 10px;">
+                    <div style="font-size:9px;color:var(--muted);margin-bottom:3px;">Terpenuhi</div>
                     <div style="font-size:14px;font-weight:700;color:var(--green);
                                 font-family:var(--font-mono);">
-                        ${fmtDec(terpenuhi,2)} <span style="font-size:9px;">m³</span>
+                        ${fmtDec(terpenuhi,2)}<span style="font-size:9px;color:var(--muted);"> m³</span>
                     </div>
                 </div>
-                <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;">
-                    <div style="font-size:9px;color:var(--muted);">Stok Fisik</div>
-                    <div style="font-size:14px;font-weight:700;font-family:var(--font-mono);"
-                         style="color:${stokCol}">
-                        <span style="color:${stokCol}">${fmtDec(stok,2)}</span>
-                        <span style="font-size:9px;color:var(--muted);"> m³</span>
+                <div style="background:var(--bg3);border-radius:8px;padding:8px 10px;">
+                    <div style="font-size:9px;color:var(--muted);margin-bottom:3px;">Stok Fisik</div>
+                    <div style="font-size:14px;font-weight:700;font-family:var(--font-mono);
+                                color:${stokCol};">
+                        ${fmtDec(stok,2)}<span style="font-size:9px;color:var(--muted);"> m³</span>
                     </div>
                 </div>
             </div>
@@ -520,7 +595,11 @@ function renderBoardStockHistory() {
         (b.tanggal || '').localeCompare(a.tanggal || '')).slice(0, 15);
 
     if (!list.length) {
-        cont.innerHTML = '<div class="empty" style="padding:16px 0;">Belum ada riwayat input stok.</div>';
+        cont.innerHTML = `
+        <div style="text-align:center;padding:24px 20px;color:var(--muted);font-size:12px;">
+            <div style="font-size:24px;margin-bottom:6px;opacity:.4;">📋</div>
+            Belum ada riwayat input stok.
+        </div>`;
         return;
     }
 
@@ -542,7 +621,14 @@ function renderBoardStockHistory() {
     }).join('');
 
     cont.innerHTML = `
-    <div class="section-head" style="margin-top:16px;">📋 Riwayat Input Stok (15 Terakhir)</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:18px;margin-bottom:10px;
+                padding-bottom:8px;border-bottom:1px solid var(--border);">
+        <span style="width:3px;height:16px;background:var(--muted);
+                      border-radius:2px;display:inline-block;"></span>
+        <span style="font-size:12px;font-weight:700;color:var(--text);">
+            📋 Riwayat Input Stok (15 Terakhir)
+        </span>
+    </div>
     <div class="table-wrap">
         <table style="font-size:12px;">
             <thead><tr>
@@ -566,8 +652,11 @@ function initBoardStockForm() {
         .join('');
 
     cont.innerHTML = `
-    <div class="form-title">📦 Input Stok Board Fisik per PO</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">
+    <div class="form-title" style="font-size:15px;font-weight:700;
+                                   color:var(--gold);margin-bottom:6px;">
+        📦 Input Stok Board Fisik per PO
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
         Input hasil opname atau penghitungan stok fisik di gudang. Data ini digunakan
         untuk memantau kesiapan pemenuhan order.
     </div>
@@ -673,14 +762,17 @@ function renderPenjualanKPI() {
     const topTujuan = Object.entries(perTujuan)
         .sort((a, b) => b[1].vol - a[1].vol).slice(0, 3)
         .map(([k, v]) =>
-            `<span class="badge-blue" style="font-size:9px;">
+            `<span style="background:rgba(96,165,250,.13);color:var(--blue);
+                          border:1px solid rgba(96,165,250,.28);border-radius:20px;
+                          padding:3px 10px;font-size:10px;font-weight:600;
+                          font-family:var(--font-mono);">
                 ${escapeHtml(k)}: ${fmtDec(v.vol,2)} m³
             </span>`
-        ).join(' ');
+        ).join('');
 
     cont.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));
-                gap:12px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+                gap:12px;margin-bottom:16px;">
         ${szKPI('💰 Netto Bulan Ini',    fmtDec(totNettoBln,2)+' m³', 'var(--green)',    'Rp '+fmtRpRekap(totHargaBln))}
         ${szKPI('📦 Bruto Bulan Ini',    fmtDec(totVolBln,2)+' m³',   'var(--gold)',     hariBln+' hari aktif')}
         ${szKPI('↩️ Total Retur',         fmtDec(totReturBln,2)+' m³', totReturBln > 0 ? 'var(--red)' : 'var(--muted)', 'Bulan ini')}
@@ -691,7 +783,9 @@ function renderPenjualanKPI() {
             orderAktif.length > 0 ? 'Belum lunas' : 'Semua lunas')}
     </div>
     ${topTujuan ? `
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;
+                padding:10px 14px;background:var(--bg2);border:1px solid var(--border);
+                border-radius:8px;">
         <span style="font-size:10px;color:var(--muted);">🏆 Top Tujuan:</span>
         ${topTujuan}
     </div>` : ''}`;
@@ -726,7 +820,14 @@ window.renderPenjualanList = function () {
     );
 
     if (!list.length) {
-        cont.innerHTML = '<div class="empty">📭 Belum ada penjualan atau tidak sesuai filter</div>';
+        cont.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;color:var(--muted);">
+            <div style="font-size:32px;margin-bottom:8px;opacity:.5;">📭</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">
+                Belum ada penjualan
+            </div>
+            <div style="font-size:11px;">Ubah filter atau catat penjualan baru</div>
+        </div>`;
         return;
     }
 
@@ -734,21 +835,23 @@ window.renderPenjualanList = function () {
         const order    = (window.orderList || []).find(o => o.id === p.orderId);
         const netto    = getPenjualanNetto(p);
         const hPerM3   = netto > 0 ? (p.harga / netto) : 0;
-        const returPct = p.volume > 0 ? (p.retur / p.volume * 100).toFixed(1) : 0;
+        const returPct = p.volume > 0 ? (p.retur / p.volume * 100).toFixed(1) : '0';
 
-        return `<tr>
+        return `<tr onmouseover="this.style.background='var(--bg3)'"
+                    onmouseout="this.style.background=''">
             <td>${fmtDate(p.tanggal)}</td>
             <td>
-                <div class="highlight" style="font-size:11px;">
+                <div style="font-size:12px;font-weight:700;font-family:var(--font-mono);
+                            color:var(--text);">
                     ${order ? escapeHtml(order.kodePO) : '—'}
                 </div>
                 <div style="font-size:10px;color:var(--muted);">
                     ${order ? escapeHtml(order.perusahaan || '') : ''}
                 </div>
             </td>
-            <td class="right">${fmt(p.pcs)}</td>
-            <td class="right">
-                <span style="color:var(--gold);font-family:var(--font-mono);">
+            <td style="text-align:right;font-family:var(--font-mono);">${fmt(p.pcs)}</td>
+            <td style="text-align:right;">
+                <span style="font-family:var(--font-mono);color:var(--gold);">
                     ${fmtDec(p.volume,3)}
                 </span>
                 ${p.retur > 0
@@ -757,17 +860,14 @@ window.renderPenjualanList = function () {
                        </div>`
                     : ''}
             </td>
-            <td class="right" style="color:var(--green);font-family:var(--font-mono);">
-                ${fmtDec(netto,3)}
-            </td>
-            <td>
-                <div style="font-family:var(--font-mono);font-size:11px;">
-                    ${escapeHtml(p.truk)}
-                </div>
+            <td style="text-align:right;font-family:var(--font-mono);
+                       font-weight:700;color:var(--green);">${fmtDec(netto,3)}</td>
+            <td style="font-family:var(--font-mono);font-size:11px;">
+                ${escapeHtml(p.truk)}
             </td>
             <td>${escapeHtml(p.tujuan)}</td>
-            <td class="right">
-                <div style="font-family:var(--font-mono);color:var(--green);">
+            <td style="text-align:right;">
+                <div style="font-family:var(--font-mono);color:var(--green);font-weight:600;">
                     Rp ${fmt(p.harga)}
                 </div>
                 <div style="font-size:9px;color:var(--muted);">
@@ -775,33 +875,44 @@ window.renderPenjualanList = function () {
                 </div>
             </td>
             <td>
-                <div class="flex gap4">
+                <div style="display:flex;gap:4px;justify-content:center;">
                     <button class="btn btn-edit btn-sm"
-                        onclick="window.editPenjualan('${p.id}')">✏️</button>
-                    <button class="btn btn-del btn-sm"
-                        onclick="window.deletePenjualan('${p.id}')">🗑️</button>
+                        title="Edit" onclick="window.editPenjualan('${p.id}')">✏️</button>
+                    <button class="btn btn-del  btn-sm"
+                        title="Hapus" onclick="window.deletePenjualan('${p.id}')">🗑️</button>
                 </div>
             </td>
         </tr>`;
     }).join('');
 
     cont.innerHTML = `
-    <div class="section-head">💰 Daftar Penjualan</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:3px;height:18px;background:var(--green);
+                          border-radius:2px;display:inline-block;"></span>
+            <span style="font-size:13px;font-weight:700;color:var(--text);">
+                💰 Daftar Penjualan
+            </span>
+            <span style="font-size:10px;background:rgba(74,222,128,.13);color:var(--green);
+                         border:1px solid rgba(74,222,128,.28);border-radius:20px;
+                         padding:2px 8px;font-weight:600;">${list.length} transaksi</span>
+        </div>
+        <button style="display:inline-flex;align-items:center;gap:5px;
+                        background:rgba(96,165,250,.12);color:var(--blue);
+                        border:1px solid rgba(96,165,250,.3);border-radius:6px;
+                        padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;"
+                onclick="window.exportPenjualanCSV()">📥 Export CSV</button>
+    </div>
     <div class="table-wrap">
         <table style="font-size:11px;">
             <thead><tr>
-                <th>Tanggal</th><th>PO / Pembeli</th><th>Pcs</th>
-                <th>Bruto (m³)</th><th>Netto (m³)</th>
-                <th>No. Truk</th><th>Tujuan</th><th>Harga</th><th>Aksi</th>
+                <th>Tanggal</th><th>PO / Pembeli</th><th class="right">Pcs</th>
+                <th class="right">Bruto (m³)</th><th class="right">Netto (m³)</th>
+                <th>No. Truk</th><th>Tujuan</th><th class="right">Harga</th><th>Aksi</th>
             </tr></thead>
             <tbody>${rows}</tbody>
         </table>
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-        <button class="btn btn-sm"
-            style="background:rgba(96,165,250,.12);color:var(--blue);
-                   border-color:rgba(96,165,250,.3);"
-            onclick="window.exportPenjualanCSV()">📥 Export CSV</button>
     </div>`;
 };
 
@@ -860,7 +971,14 @@ function renderPenjualanCharts() {
     }).join('');
 
     cont.innerHTML = `
-    <div class="section-head" style="margin-top:20px;">📊 Analitik Penjualan — ${_fmtBulan(bulan)}</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:22px;margin-bottom:14px;
+                padding-bottom:10px;border-bottom:1px solid var(--border);">
+        <span style="width:3px;height:18px;background:var(--blue);
+                      border-radius:2px;display:inline-block;"></span>
+        <span style="font-size:13px;font-weight:700;color:var(--text);">
+            📊 Analitik Penjualan — ${_fmtBulan(bulan)}
+        </span>
+    </div>
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px;">
         <div class="chart-wrap">
             <div class="chart-title">📅 Volume & Nilai Penjualan Harian</div>
@@ -1163,7 +1281,9 @@ function injectSezingFilterBar() {
                        color:var(--input-color);padding:7px 10px;border-radius:6px;font-size:11px;"
                 onchange="window.renderSezingList()">
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="resetSzFilter()">↩ Reset</button>`;
+        <button style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);
+                        border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;"
+                onclick="resetSzFilter()">↩ Reset</button>`;
     listEl.insertAdjacentElement('beforebegin', bar);
 }
 
@@ -1189,7 +1309,9 @@ function injectJualFilterBar() {
                        color:var(--input-color);padding:7px 10px;border-radius:6px;font-size:11px;"
                 onchange="window.renderPenjualanList()">
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="resetJualFilter()">↩ Reset</button>`;
+        <button style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);
+                        border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;"
+                onclick="resetJualFilter()">↩ Reset</button>`;
     listEl.insertAdjacentElement('beforebegin', bar);
 }
 
@@ -1274,9 +1396,11 @@ function _buildSezingModal() {
     modal.innerHTML = `
     <div class="form-card" style="margin-bottom:16px;position:relative;">
         <button onclick="closeSezingForm()"
-            style="position:absolute;top:14px;right:14px;background:var(--bg3);border:1px solid var(--border);
-                   color:var(--muted);width:26px;height:26px;border-radius:50%;cursor:pointer;
-                   font-size:13px;display:flex;align-items:center;justify-content:center;">✕</button>
+            style="position:absolute;top:14px;right:14px;background:var(--bg3);
+                   border:1px solid var(--border);color:var(--muted);width:28px;height:28px;
+                   border-radius:50%;cursor:pointer;font-size:13px;font-weight:700;
+                   display:flex;align-items:center;justify-content:center;
+                   transition:background .15s;">✕</button>
         <div id="sezing-form-inner"></div>
     </div>`;
     const szList = document.getElementById('sezing-list-content');

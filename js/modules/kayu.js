@@ -31,20 +31,25 @@ function injectKayuStyles() {
         /* ─── KPI Cards ─── */
         .ky-kpi-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
             margin-bottom: 16px;
         }
         .ky-kpi {
-            background: var(--bg3);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px 14px;
+            background: var(--bg2);
+            border: 1px solid var(--gold-dim);
+            border-radius: 12px;
+            padding: 14px 16px;
             text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,.15);
+            position: relative;
+            overflow: hidden;
         }
         .ky-kpi-val { font-size: 22px; font-weight: 800; line-height: 1.15; }
-        .ky-kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 4px; }
-        .ky-kpi-sub { font-size: 10px; margin-top: 3px; }
+        .ky-kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 5px;
+                      text-transform: uppercase; letter-spacing: .06em; }
+        .ky-kpi-sub { font-size: 10px; margin-top: 4px;
+                      border-top: 1px solid var(--border); padding-top: 4px; }
         .kv-gold   { color: var(--gold); }
         .kv-green  { color: var(--green); }
         .kv-blue   { color: #60a5fa; }
@@ -63,7 +68,11 @@ function injectKayuStyles() {
             gap: 8px;
             flex-wrap: wrap;
             align-items: center;
-            margin-bottom: 14px;
+            margin-bottom: 16px;
+            padding: 10px 14px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
         }
         .ky-toolbar select, .ky-toolbar input[type=text] {
             padding: 7px 10px;
@@ -88,18 +97,19 @@ function injectKayuStyles() {
         .ky-harga-warn { border-left-color: var(--orange); color: var(--orange); }
 
         /* ─── Tabel Kayu ─── */
-        .ky-tbl-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+        .ky-tbl-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border);
+                       box-shadow: 0 2px 10px rgba(0,0,0,.12); }
         .ky-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
         .ky-tbl thead tr { background: var(--bg3); border-bottom: 2px solid var(--gold-dim); }
         .ky-tbl th {
-            padding: 9px 10px; text-align: left; font-size: 10px;
-            text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
-            white-space: nowrap;
+            padding: 10px 10px; text-align: left; font-size: 10px;
+            text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+            white-space: nowrap; font-weight: 600;
         }
         .ky-tbl th.r { text-align: right; }
-        .ky-tbl td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .ky-tbl td { padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
         .ky-tbl td.r { text-align: right; }
-        .ky-tbl tbody tr:hover { background: var(--gold-dim); }
+        .ky-tbl tbody tr:hover { background: var(--gold-dim); cursor: default; }
         .ky-tbl tbody tr:last-child td { border-bottom: none; }
 
         .ky-nota { font-family: monospace; font-weight: 700; color: var(--gold); font-size: 12px; }
@@ -124,79 +134,87 @@ function injectKayuStyles() {
 
         /* ─── Sparkline ─── */
         .ky-sparkline-wrap {
-            background: var(--bg3);
+            background: var(--bg2);
             border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px 14px;
+            border-radius: 12px;
+            padding: 14px 16px;
             margin-bottom: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.12);
         }
         .ky-sparkline-title {
             font-size: 10px; color: var(--muted);
-            text-transform: uppercase; letter-spacing: .08em;
-            margin-bottom: 8px;
+            text-transform: uppercase; letter-spacing: .09em;
+            font-weight: 600; margin-bottom: 12px;
         }
-        .ky-spark { display: flex; align-items: flex-end; gap: 4px; height: 40px; }
+        .ky-spark { display: flex; align-items: flex-end; gap: 5px; height: 46px; }
         .ky-spark-col { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .ky-spark-val { font-size: 7px; color: var(--muted); margin-bottom: 2px; white-space: nowrap; }
         .ky-spark-bar {
-            width: 100%; border-radius: 3px 3px 0 0;
+            width: 100%; border-radius: 4px 4px 0 0;
             min-height: 4px; cursor: pointer;
-            transition: opacity .15s;
+            transition: opacity .15s, background .2s;
         }
-        .ky-spark-bar:hover { opacity: .7; }
-        .ky-spark-lbl { font-size: 8px; color: var(--muted); margin-top: 3px; white-space: nowrap; }
+        .ky-spark-bar:hover { opacity: .75; }
+        .ky-spark-lbl { font-size: 8px; color: var(--muted); margin-top: 4px; white-space: nowrap; }
 
         /* ─── Summary tab ─── */
         .ky-sum-kpi-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 10px;
-            margin: 14px 0 16px;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin: 14px 0 18px;
         }
         .ky-sum-kpi {
-            background: var(--bg3); border: 1px solid var(--border);
-            border-radius: 10px; padding: 12px 14px; text-align: center;
+            background: var(--bg2); border: 1px solid var(--gold-dim);
+            border-radius: 12px; padding: 14px 16px; text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,.13);
         }
-        .ky-sum-kpi-val { font-size: 20px; font-weight: 800; color: var(--gold); }
-        .ky-sum-kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 4px; }
+        .ky-sum-kpi-val { font-size: 22px; font-weight: 800; color: var(--gold); }
+        .ky-sum-kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 5px;
+                           text-transform: uppercase; letter-spacing: .06em; }
 
         /* Ranking bar */
         .ky-rank-item {
             display: flex; align-items: center; gap: 8px;
-            padding: 8px 0; border-bottom: 1px solid var(--border);
+            padding: 9px 0; border-bottom: 1px solid var(--border);
             font-size: 12px;
         }
         .ky-rank-item:last-child { border-bottom: none; }
-        .ky-rank-name { min-width: 100px; max-width: 140px;
+        .ky-rank-name { min-width: 100px; max-width: 150px;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            font-weight: 600; color: var(--text); }
+            font-weight: 700; color: var(--text); }
         .ky-rank-bar-outer { flex: 1; background: var(--border);
             border-radius: 4px; height: 8px; overflow: hidden; }
         .ky-rank-bar-inner { height: 100%; border-radius: 4px;
-            background: var(--gold); transition: width .4s ease; }
+            background: linear-gradient(90deg, var(--gold), rgba(212,160,23,.5));
+            transition: width .4s ease; }
         .ky-rank-val { font-size: 11px; color: var(--muted); min-width: 70px; text-align: right; }
-        .ky-rank-pct { font-size: 10px; color: var(--gold); min-width: 36px; text-align: right; }
+        .ky-rank-pct { font-size: 10px; color: var(--gold); min-width: 38px; text-align: right; font-weight: 700; }
 
         /* Grade gauge */
         .ky-grade-gauge {
-            display: flex; height: 12px; border-radius: 8px;
-            overflow: hidden; gap: 2px; margin: 8px 0 4px;
+            display: flex; height: 14px; border-radius: 8px;
+            overflow: hidden; gap: 2px; margin: 10px 0 6px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.2);
         }
         .ky-grade-bagus { background: var(--green); transition: flex .4s ease; }
         .ky-grade-jelek { background: #f87171;       transition: flex .4s ease; }
 
         /* Comparison row */
         .ky-compare-row {
-            display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;
+            display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;
         }
         .ky-compare-card {
-            flex: 1; min-width: 120px;
-            background: var(--bg3); border: 1px solid var(--border);
-            border-radius: 10px; padding: 12px 14px;
+            flex: 1; min-width: 130px;
+            background: var(--bg2); border: 1px solid var(--border);
+            border-radius: 12px; padding: 14px 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.12);
         }
-        .ky-compare-title { font-size: 10px; color: var(--muted);
-            text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
-        .ky-compare-val { font-size: 18px; font-weight: 800; color: var(--gold); }
-        .ky-compare-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
+        .ky-compare-title { font-size: 9px; color: var(--muted);
+            text-transform: uppercase; letter-spacing: .08em; margin-bottom: 7px; font-weight: 600; }
+        .ky-compare-val { font-size: 19px; font-weight: 800; color: var(--gold); }
+        .ky-compare-sub { font-size: 10px; color: var(--muted); margin-top: 5px;
+                          padding-top: 5px; border-top: 1px solid var(--border); }
 
         /* Summary tables */
         .ky-sum-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -241,7 +259,7 @@ function avgHargaPerM3(list) {
 function prevMonth(ym) {
     const [y, m] = ym.split('-').map(Number);
     const d = new Date(y, m - 2, 1);
-    return d.toISOString().slice(0, 7);
+    return localYM(d);
 }
 
 function trendArrow(cur, prev) {
@@ -257,6 +275,12 @@ function escHtml(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, m =>
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
+
+// Bug fix: toISOString() returns UTC — in UTC+7 (WIB) midnight local = previous day UTC.
+// Always use local year/month to avoid off-by-one month errors.
+function localYM(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 // ─────────────────────────────────────────────────
@@ -433,7 +457,7 @@ function generateKayuMonthOptions() {
     const now = new Date();
     for (let i = 1; i <= 12; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const m = d.toISOString().slice(0, 7);
+        const m = localYM(d);
         if (m !== cur) opts += `<option value="${m}">${m}</option>`;
     }
     return opts;
@@ -489,7 +513,7 @@ window.renderKayu = function() {
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        sparkMonths.push(d.toISOString().slice(0, 7));
+        sparkMonths.push(localYM(d));
     }
     const sparkVols = sparkMonths.map(m =>
         allList.filter(x => x.tanggal && x.tanggal.startsWith(m))
@@ -503,13 +527,15 @@ window.renderKayu = function() {
             <div class="ky-sparkline-title">📈 Tren Volume Pembelian — 6 Bulan Terakhir</div>
             <div class="ky-spark">
                 ${sparkMonths.map((m, i) => {
-                    const h = Math.max(5, (sparkVols[i]/maxSparkVol)*100);
+                    const px = Math.max(4, Math.round((sparkVols[i] / maxSparkVol) * 36));
                     const isCur = m === curMonth;
+                    const volLbl = sparkVols[i] > 0 ? fmtDec(sparkVols[i], 1) : '—';
                     return `<div class="ky-spark-col">
+                        <div class="ky-spark-val" style="font-size:7px;color:${isCur?'var(--gold)':'var(--muted)'};margin-bottom:2px;white-space:nowrap;">${sparkVols[i]>0?fmtDec(sparkVols[i],1):''}</div>
                         <div class="ky-spark-bar"
-                            style="height:${h}%; background:${isCur?'var(--gold)':'#d4a01755'};"
-                            title="${m}: ${fmtDec(sparkVols[i],2)} m³"></div>
-                        <div class="ky-spark-lbl">${m.slice(5)}</div>
+                            style="height:${px}px; background:${isCur?'var(--gold)':'rgba(212,160,23,.35)'}; border:${isCur?'1px solid var(--gold)':'none'};"
+                            title="${m}: ${volLbl} m³"></div>
+                        <div class="ky-spark-lbl" style="color:${isCur?'var(--gold)':'var(--muted)'}; font-weight:${isCur?700:400};">${m.slice(5)}</div>
                     </div>`;
                 }).join('')}
             </div>
@@ -519,36 +545,38 @@ window.renderKayu = function() {
     // ── KPI Cards ──
     const kpiHtml = `
         <div class="ky-kpi-grid">
-            <div class="ky-kpi">
+            <div class="ky-kpi" style="border-top:2px solid var(--gold);">
                 <div class="ky-kpi-val kv-gold">${fmtDec(volTotal,2)}</div>
                 <div class="ky-kpi-lbl">Volume (m³)</div>
-                <div class="ky-kpi-sub">${trendArrow(volTotal, volPrv)}</div>
+                <div class="ky-kpi-sub">${trendArrow(volTotal, volPrv) || '<span class="ky-trend-flat">Tidak ada data lalu</span>'}</div>
             </div>
-            <div class="ky-kpi">
+            <div class="ky-kpi" style="border-top:2px solid #60a5fa;">
                 <div class="ky-kpi-val kv-blue">Rp ${fmt(Math.round(hrgTotal/1000))}k</div>
                 <div class="ky-kpi-lbl">Total Nilai (Rp)</div>
-                <div class="ky-kpi-sub">${trendArrow(hrgTotal, hrgPrv)}</div>
+                <div class="ky-kpi-sub">${trendArrow(hrgTotal, hrgPrv) || '&nbsp;'}</div>
             </div>
-            <div class="ky-kpi">
+            <div class="ky-kpi" style="border-top:2px solid ${avgM3 > avgPrv*HARGA_WARNING_FACTOR && avgPrv>0 ? 'var(--orange)' : 'var(--green)'};">
                 <div class="ky-kpi-val ${avgM3 > avgPrv*HARGA_WARNING_FACTOR && avgPrv>0 ? 'kv-orange' : 'kv-green'}">
                     Rp ${fmt(Math.round(avgM3))}
                 </div>
                 <div class="ky-kpi-lbl">Avg Harga/m³</div>
-                <div class="ky-kpi-sub">${trendArrow(avgM3, avgPrv)}</div>
+                <div class="ky-kpi-sub">${trendArrow(avgM3, avgPrv) || '&nbsp;'}</div>
             </div>
-            <div class="ky-kpi">
+            <div class="ky-kpi" style="border-top:2px solid var(--muted);">
                 <div class="ky-kpi-val kv-muted">${notaTotal}</div>
                 <div class="ky-kpi-lbl">Total Nota</div>
+                <div class="ky-kpi-sub">&nbsp;</div>
             </div>
-            <div class="ky-kpi">
+            <div class="ky-kpi" style="border-top:2px solid var(--green);">
                 <div class="ky-kpi-val kv-green">${pctBagus.toFixed(0)}%</div>
                 <div class="ky-kpi-lbl">Grade Bagus</div>
                 <div class="ky-kpi-sub" style="font-size:10px; color:var(--muted);">
-                    ${fmtDec(volBagus,2)} / ${fmtDec(volJelek,2)} m³</div>
+                    ${fmtDec(volBagus,1)} / ${fmtDec(volJelek,1)} m³</div>
             </div>
-            <div class="ky-kpi">
+            <div class="ky-kpi" style="border-top:2px solid #60a5fa;">
                 <div class="ky-kpi-val kv-blue">${fmtDec(volTotal>0&&notaTotal>0?volTotal/notaTotal:0,2)}</div>
                 <div class="ky-kpi-lbl">Avg Vol/Nota (m³)</div>
+                <div class="ky-kpi-sub">&nbsp;</div>
             </div>
         </div>`;
 
@@ -566,8 +594,14 @@ window.renderKayu = function() {
     // ── Tabel ──
     let tableHtml = '';
     if (!filtered.length) {
-        tableHtml = `<div class="empty" style="padding:40px; text-align:center; color:var(--muted);">
-            📭 Tidak ada data sesuai filter.</div>`;
+        tableHtml = `
+        <div style="text-align:center;padding:50px 20px;color:var(--muted);">
+            <div style="font-size:36px;margin-bottom:10px;opacity:.4;">📭</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">
+                Tidak ada data sesuai filter
+            </div>
+            <div style="font-size:11px;">Ubah filter bulan atau hapus pencarian</div>
+        </div>`;
     } else {
         const avgM3All = avgHargaPerM3(allList);
         const rows = [...filtered].reverse().map((r, i) => {
@@ -592,8 +626,10 @@ window.renderKayu = function() {
                 <td class="r">Rp ${fmt(r.harga)}</td>
                 <td class="r"><span class="${hM3Class}">Rp ${fmt(Math.round(hM3))}</span></td>
                 <td>
-                    <button class="btn btn-edit btn-sm" onclick="window.editKayu('${r.id}')">✏️</button>
-                    <button class="btn btn-del  btn-sm" onclick="window.deleteKayu('${r.id}')">🗑️</button>
+                    <div style="display:flex;gap:4px;justify-content:center;">
+                        <button class="btn btn-edit btn-sm" onclick="window.editKayu('${r.id}')">✏️</button>
+                        <button class="btn btn-del  btn-sm" onclick="window.deleteKayu('${r.id}')">🗑️</button>
+                    </div>
                 </td>
             </tr>`;
         }).join('');
@@ -662,7 +698,14 @@ window.loadKayuSummary = function() {
     if (!container) return;
 
     if (!dataBulan.length) {
-        container.innerHTML = '<div class="empty">📭 Tidak ada data pembelian kayu pada bulan ini.</div>';
+        container.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;color:var(--muted);">
+            <div style="font-size:32px;margin-bottom:8px;opacity:.4;">📭</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">
+                Tidak ada data pada bulan ini
+            </div>
+            <div style="font-size:11px;">Pilih bulan lain atau input data pembelian</div>
+        </div>`;
         return;
     }
 
@@ -715,29 +758,31 @@ window.loadKayuSummary = function() {
     let html = `
         <!-- KPI ringkasan -->
         <div class="ky-sum-kpi-grid">
-            <div class="ky-sum-kpi">
+            <div class="ky-sum-kpi" style="border-top:2px solid var(--gold);">
                 <div class="ky-sum-kpi-val">${fmtDec(volTotal,2)}</div>
                 <div class="ky-sum-kpi-lbl">Volume (m³)</div>
             </div>
-            <div class="ky-sum-kpi">
-                <div class="ky-sum-kpi-val">Rp ${fmt(Math.round(hrgTotal/1000))}k</div>
+            <div class="ky-sum-kpi" style="border-top:2px solid #60a5fa;">
+                <div class="ky-sum-kpi-val" style="color:#60a5fa;">Rp ${fmt(Math.round(hrgTotal/1000))}k</div>
                 <div class="ky-sum-kpi-lbl">Total Nilai (Rp)</div>
             </div>
-            <div class="ky-sum-kpi">
-                <div class="ky-sum-kpi-val">Rp ${fmt(Math.round(avgM3))}</div>
+            <div class="ky-sum-kpi" style="border-top:2px solid var(--green);">
+                <div class="ky-sum-kpi-val" style="color:var(--green);">Rp ${fmt(Math.round(avgM3))}</div>
                 <div class="ky-sum-kpi-lbl">Avg Harga/m³</div>
             </div>
-            <div class="ky-sum-kpi">
-                <div class="ky-sum-kpi-val">${notaTotal}</div>
+            <div class="ky-sum-kpi" style="border-top:2px solid var(--muted);">
+                <div class="ky-sum-kpi-val" style="color:var(--muted);">${notaTotal}</div>
                 <div class="ky-sum-kpi-lbl">Jumlah Nota</div>
             </div>
         </div>
 
         <!-- Komparasi vs bulan lalu -->
         ${dataPrv.length ? `
-        <div style="font-size:11px; font-weight:600; color:var(--muted);
-            text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px;">
-            ⚖️ Komparasi vs Bulan Lalu (${prv})
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span style="width:3px;height:16px;background:var(--gold);border-radius:2px;display:inline-block;"></span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.07em;">
+                ⚖️ Komparasi vs Bulan Lalu (${prv})
+            </span>
         </div>
         <div class="ky-compare-row">
             <div class="ky-compare-card">
@@ -758,26 +803,31 @@ window.loadKayuSummary = function() {
         </div>` : ''}
 
         <!-- Grade breakdown -->
-        <div style="font-size:11px; font-weight:600; color:var(--muted);
-            text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">
-            🌿 Kualitas Grade (berdasarkan volume)
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="width:3px;height:16px;background:var(--green);border-radius:2px;display:inline-block;"></span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.07em;">
+                🌿 Kualitas Grade (berdasarkan volume)
+            </span>
         </div>
         <div class="ky-grade-gauge">
             <div class="ky-grade-bagus" style="flex:${vBagus};"></div>
             <div class="ky-grade-jelek" style="flex:${vJelek};"></div>
         </div>
-        <div style="display:flex; gap:16px; font-size:11px; margin-bottom:16px;">
+        <div style="display:flex; gap:16px; font-size:11px; margin-bottom:18px;">
             <span style="color:var(--green);">✅ Bagus: ${fmtDec(vBagus,2)} m³ (${pBagus.toFixed(1)}%)</span>
             <span style="color:#f87171;">⚠️ Jelek: ${fmtDec(vJelek,2)} m³ (${(100-pBagus).toFixed(1)}%)</span>
         </div>
 
         <!-- Ranking Supplier -->
-        <div style="font-size:11px; font-weight:600; color:var(--muted);
-            text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px;">
-            🏆 Ranking Supplier (Volume)
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span style="width:3px;height:16px;background:var(--gold);border-radius:2px;display:inline-block;"></span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.07em;">
+                🏆 Ranking Supplier (Volume)
+            </span>
         </div>
-        <div style="background:var(--bg3); border:1px solid var(--border);
-            border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+        <div style="background:var(--bg2); border:1px solid var(--border);
+            border-radius:12px; padding:14px 16px; margin-bottom:18px;
+            box-shadow:0 2px 8px rgba(0,0,0,.1);">
             ${supArr.map(s => {
                 const pct = volTotal > 0 ? (s.vol/volTotal)*100 : 0;
                 return `<div class="ky-rank-item">
@@ -792,9 +842,11 @@ window.loadKayuSummary = function() {
         </div>
 
         <!-- Tabel per Supplier -->
-        <div style="font-size:11px; font-weight:600; color:var(--muted);
-            text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px;">
-            📦 Detail per Supplier
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span style="width:3px;height:16px;background:var(--blue);border-radius:2px;display:inline-block;"></span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.07em;">
+                📦 Detail per Supplier
+            </span>
         </div>
         <div style="overflow-x:auto; margin-bottom:18px;">
             <table class="ky-sum-tbl">
@@ -837,9 +889,11 @@ window.loadKayuSummary = function() {
         </div>
 
         <!-- Tabel per Asal -->
-        <div style="font-size:11px; font-weight:600; color:var(--muted);
-            text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px;">
-            📍 Detail per Asal Kayu
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span style="width:3px;height:16px;background:var(--orange);border-radius:2px;display:inline-block;"></span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.07em;">
+                📍 Detail per Asal Kayu
+            </span>
         </div>
         <div style="overflow-x:auto; margin-bottom:18px;">
             <table class="ky-sum-tbl">
@@ -871,9 +925,11 @@ window.loadKayuSummary = function() {
         </div>
 
         <!-- Per Jenis -->
-        <div style="font-size:11px; font-weight:600; color:var(--muted);
-            text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px;">
-            🪵 Per Jenis Kayu
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span style="width:3px;height:16px;background:#a78bfa;border-radius:2px;display:inline-block;"></span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.07em;">
+                🪵 Per Jenis Kayu
+            </span>
         </div>
         <div style="overflow-x:auto;">
             <table class="ky-sum-tbl">
@@ -915,7 +971,7 @@ function ensureSummaryPanel() {
         panel.className = 'subtab-panel hidden';
         panel.innerHTML = `
             <div class="form-card">
-                <div class="form-title">📊 Rangkuman Pembelian Kayu</div>
+                <div class="form-title" style="font-size:15px;font-weight:700;color:var(--gold);margin-bottom:16px;">📊 Rangkuman Pembelian Kayu</div>
                 <div class="grid2">
                     <div class="field"><label>Pilih Bulan</label>
                         <input type="month" id="summary-bulan" value="${thisMonth()}"></div>

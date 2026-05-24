@@ -13,5 +13,6 @@ window.STORAGE_KEYS = {
     ACTIVITY: "prodAdmin_activity",
     SETTINGS: "prodAdmin_settings",
     BOARDSTOCK: "prodAdmin_boardStock",
-    LMKB: "prodAdmin_lmkb"   // tambahan untuk LMKB (meski tidak wajib)
+    LMKB: "prodAdmin_lmkb",
+    USER: "prodAdmin_user"      // tambahan untuk daftar operator
 };

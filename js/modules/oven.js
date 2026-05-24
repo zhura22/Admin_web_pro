@@ -3,7 +3,7 @@
 // status: 'isi' | 'selesai' | 'kosong'
 
 const TOTAL_CHAMBERS = 7;
-const DURASI_NORMAL_HARI = 7; // standar pengeringan 7 hari
+const DURASI_NORMAL_HARI = 5; // standar pengeringan 5 hari
 
 // ═══════════════════════════════════════════════════════
 // RENDER UTAMA
@@ -41,28 +41,44 @@ function renderOvenSummary() {
     if (!container) return;
 
     container.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
-        ${ovenKPI('🔥 Chamber Aktif', aktif.length + ' / ' + TOTAL_CHAMBERS, aktif.length > 0 ? 'var(--orange)' : 'var(--muted)')}
-        ${ovenKPI('🟢 Chamber Kosong', kosong + ' chamber', kosong > 0 ? 'var(--green)' : 'var(--muted)')}
-        ${ovenKPI('📦 Vol. Sedang Kering', fmtDec(totVolAktif, 2) + ' m³', 'var(--gold)')}
-        ${ovenKPI('✅ Vol. Sudah Selesai', fmtDec(totVolSelesai, 2) + ' m³', 'var(--blue)')}
-        ${ovenKPI('⏱️ Rata-rata Durasi', avgDurasi + ' hari', 'var(--gold-light)')}
-        ${ovenKPI('⚠️ Hampir Selesai', hampirSelesai.length + ' chamber', hampirSelesai.length > 0 ? 'var(--red)' : 'var(--muted)')}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+        ${ovenKPI('🔥 Chamber Aktif',      aktif.length + ' / ' + TOTAL_CHAMBERS, aktif.length > 0 ? 'var(--orange)' : 'var(--muted)')}
+        ${ovenKPI('🟢 Chamber Kosong',     kosong + ' chamber',                   kosong > 0 ? 'var(--green)' : 'var(--muted)')}
+        ${ovenKPI('📦 Vol. Sedang Kering', fmtDec(totVolAktif, 2) + ' m³',        'var(--gold)')}
+        ${ovenKPI('✅ Vol. Sudah Selesai', fmtDec(totVolSelesai, 2) + ' m³',      '#60a5fa')}
+        ${ovenKPI('⏱️ Rata-rata Durasi',   avgDurasi + ' hari',                   'var(--gold-light)')}
+        ${ovenKPI('⚠️ Hampir Selesai',     hampirSelesai.length + ' chamber',     hampirSelesai.length > 0 ? 'var(--red)' : 'var(--muted)')}
     </div>
     ${hampirSelesai.length > 0 ? `
-    <div style="background:var(--red-bg);border:1px solid rgba(248,113,113,0.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;">
-        <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:6px;">⚠️ Segera Selesai / Perlu Perhatian</div>
+    <div style="background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,0.28);
+                border-left:3px solid #f87171;border-radius:10px;padding:12px 16px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;color:#f87171;margin-bottom:8px;">
+            ⚠️ Segera Selesai / Perlu Perhatian
+        </div>
         ${hampirSelesai.map(o => {
             const sisa = sisaHari(o.tglMulai);
-            return `<div style="font-size:12px;color:var(--orange);padding:2px 0;">• Chamber ${o.chamber} — Open ${o.openNo || '?'} · Sisa ~${sisa} hari lagi (mulai ${fmtDate(o.tglMulai)})</div>`;
+            return `<div style="font-size:12px;color:var(--orange);padding:3px 0;
+                                display:flex;align-items:center;gap:6px;">
+                        <span style="width:6px;height:6px;border-radius:50%;
+                                     background:var(--orange);flex-shrink:0;"></span>
+                        Chamber ${o.chamber} — Open <b>${o.openNo || '?'}</b>
+                        · Sisa ~${sisa} hari lagi (mulai ${fmtDate(o.tglMulai)})
+                    </div>`;
         }).join('')}
     </div>` : ''}`;
 }
 
 function ovenKPI(label, value, color) {
-    return `<div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;padding:14px 16px;">
-        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:5px;">${label}</div>
-        <div style="font-size:18px;font-weight:700;color:${color};font-family:var(--font-mono);">${value}</div>
+    return `<div style="background:var(--bg2);border:1px solid var(--gold-dim);
+                border-top:2px solid ${color};border-radius:12px;
+                padding:14px 18px;box-shadow:0 3px 12px rgba(0,0,0,.18);
+                position:relative;overflow:hidden;">
+        <div style="position:absolute;top:-10px;right:-10px;width:48px;height:48px;
+                    border-radius:50%;background:${color};opacity:.07;pointer-events:none;"></div>
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
+                    letter-spacing:.8px;font-weight:600;margin-bottom:6px;">${label}</div>
+        <div style="font-size:20px;font-weight:700;color:${color};
+                    font-family:var(--font-mono);line-height:1.1;">${value}</div>
     </div>`;
 }
 
@@ -98,70 +114,105 @@ function renderChamberAktif(ch, data, historyCount) {
     const progress  = Math.min(100, (durasi / DURASI_NORMAL_HARI) * 100);
     const progColor = progress >= 100 ? 'var(--green)' : progress >= 70 ? 'var(--gold)' : 'var(--orange)';
 
-    // Status suhu (opsional)
     const suhuInfo  = data.suhu ? `· ${data.suhu}°C` : '';
 
     return `
-    <div class="oven-card" style="border:2px solid var(--orange);position:relative;overflow:hidden;">
-        <!-- Glow aktif -->
-        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--orange),var(--gold),var(--orange));animation:shimmer 2s linear infinite;"></div>
+    <div class="oven-card" style="border:2px solid var(--orange);position:relative;
+                                   overflow:hidden;box-shadow:0 4px 18px rgba(255,159,67,.18);">
+        <!-- Shimmer bar top -->
+        <div class="oven-shimmer-bar" style="position:absolute;top:0;left:0;right:0;height:3px;"></div>
 
         <!-- Header -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;margin-top:4px;">
             <div>
-                <div style="font-family:var(--font-mono);font-size:16px;font-weight:700;color:var(--orange);">🔥 Chamber ${ch}</div>
-                <div style="font-size:10px;color:var(--muted);margin-top:2px;">${historyCount} siklus sebelumnya</div>
+                <div style="font-family:var(--font-mono);font-size:16px;font-weight:700;
+                            color:var(--orange);">🔥 Chamber ${ch}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px;">
+                    ${historyCount} siklus sebelumnya
+                </div>
             </div>
-            <div style="display:flex;gap:6px;">
-                <span style="background:rgba(255,159,67,0.15);color:var(--orange);border:1px solid rgba(255,159,67,0.3);padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;">● AKTIF</span>
-            </div>
+            <span style="background:rgba(255,159,67,0.15);color:var(--orange);
+                         border:1px solid rgba(255,159,67,0.35);padding:3px 10px;
+                         border-radius:20px;font-size:10px;font-weight:700;
+                         display:flex;align-items:center;gap:4px;">
+                <span style="width:6px;height:6px;border-radius:50%;
+                             background:var(--orange);display:inline-block;"></span>
+                AKTIF
+            </span>
         </div>
 
         <!-- Info Utama -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
-            <div style="background:var(--bg3);border-radius:8px;padding:10px;">
-                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;">Open No.</div>
-                <div style="font-size:16px;font-weight:700;color:var(--gold);font-family:var(--font-mono);">${data.openNo || '—'}</div>
+            <div style="background:var(--bg3);border-radius:8px;padding:10px;
+                        border:1px solid var(--border);">
+                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
+                            letter-spacing:.6px;margin-bottom:4px;">Open No.</div>
+                <div style="font-size:15px;font-weight:700;color:var(--gold);
+                            font-family:var(--font-mono);">${data.openNo || '—'}</div>
             </div>
-            <div style="background:var(--bg3);border-radius:8px;padding:10px;">
-                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;">Volume</div>
-                <div style="font-size:16px;font-weight:700;color:var(--gold);font-family:var(--font-mono);">${fmtDec(data.volume || 0, 2)} <span style="font-size:10px">m³</span></div>
+            <div style="background:var(--bg3);border-radius:8px;padding:10px;
+                        border:1px solid var(--border);">
+                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
+                            letter-spacing:.6px;margin-bottom:4px;">Volume</div>
+                <div style="font-size:15px;font-weight:700;color:var(--gold);
+                            font-family:var(--font-mono);">${fmtDec(data.volume || 0, 2)}<span style="font-size:10px;color:var(--muted);"> m³</span></div>
             </div>
-            <div style="background:var(--bg3);border-radius:8px;padding:10px;">
-                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;">Mulai</div>
-                <div style="font-size:13px;font-weight:700;color:var(--text);font-family:var(--font-mono);">${fmtDate(data.tglMulai) || '—'}</div>
+            <div style="background:var(--bg3);border-radius:8px;padding:10px;
+                        border:1px solid var(--border);">
+                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
+                            letter-spacing:.6px;margin-bottom:4px;">Mulai</div>
+                <div style="font-size:12px;font-weight:700;color:var(--text);
+                            font-family:var(--font-mono);">${fmtDate(data.tglMulai) || '—'}</div>
             </div>
-            <div style="background:var(--bg3);border-radius:8px;padding:10px;">
-                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;">Berjalan</div>
-                <div style="font-size:16px;font-weight:700;color:${progColor};font-family:var(--font-mono);">${durasi} <span style="font-size:10px">hari</span></div>
+            <div style="background:var(--bg3);border-radius:8px;padding:10px;
+                        border:1px solid var(--border);">
+                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
+                            letter-spacing:.6px;margin-bottom:4px;">Berjalan</div>
+                <div style="font-size:15px;font-weight:700;color:${progColor};
+                            font-family:var(--font-mono);">${durasi}<span style="font-size:10px;color:var(--muted);"> hari</span></div>
             </div>
         </div>
 
         <!-- Progress Bar Pengeringan -->
         <div style="margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:5px;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;
+                        color:var(--muted);margin-bottom:5px;">
                 <span>Progres Pengeringan</span>
-                <span style="color:${progColor}">${progress.toFixed(0)}% dari ${DURASI_NORMAL_HARI} hari</span>
+                <span style="color:${progColor};font-weight:700;">${progress.toFixed(0)}% dari ${DURASI_NORMAL_HARI} hari</span>
             </div>
             <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
-                <div style="height:100%;width:${progress.toFixed(1)}%;background:linear-gradient(90deg,var(--orange),${progColor});border-radius:4px;transition:width .5s ease;"></div>
+                <div style="height:100%;width:${progress.toFixed(1)}%;
+                            background:linear-gradient(90deg,var(--orange),${progColor});
+                            border-radius:4px;transition:width .5s ease;"></div>
             </div>
-            <div style="font-size:10px;color:${sisa !== null && sisa <= 0 ? 'var(--green)' : 'var(--muted)'};margin-top:4px;">
+            <div style="font-size:10px;color:${sisa !== null && sisa <= 0 ? 'var(--green)' : sisa !== null && sisa <= 1 ? 'var(--orange)' : 'var(--muted)'};
+                        margin-top:5px;font-weight:${sisa !== null && sisa <= 0 ? 700 : 400};">
                 ${sisa !== null
                     ? sisa <= 0
                         ? '✅ Siap diangkat!'
-                        : `Estimasi selesai: ~${sisa} hari lagi (${estimasiSelesai(data.tglMulai)})`
+                        : `⏳ Estimasi selesai: ~${sisa} hari lagi (${estimasiSelesai(data.tglMulai)})`
                     : '—'}
             </div>
         </div>
 
-        ${data.suhu ? `<div style="font-size:11px;color:var(--orange);margin-bottom:8px;">🌡️ Suhu: ${data.suhu}°C</div>` : ''}
-        ${data.catatan ? `<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">📝 ${data.catatan}</div>` : ''}
+        ${data.suhu ? `
+        <div style="font-size:11px;color:var(--orange);margin-bottom:8px;
+                    display:inline-flex;align-items:center;gap:5px;
+                    background:rgba(255,159,67,.1);border:1px solid rgba(255,159,67,.25);
+                    border-radius:6px;padding:3px 10px;">
+            🌡️ Suhu: ${data.suhu}°C
+        </div>` : ''}
+        ${data.catatan ? `
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px;
+                    background:var(--bg3);border-radius:6px;padding:6px 10px;
+                    border-left:2px solid var(--border);">📝 ${data.catatan}</div>` : ''}
 
         <!-- Tombol Aksi -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;
+                    border-top:1px solid var(--border);">
             <button class="btn btn-secondary btn-sm" onclick="openOvenEditForm('${data.id}')">✏️ Edit</button>
-            <button class="btn btn-sm" style="background:rgba(74,222,128,0.15);color:var(--green);border-color:rgba(74,222,128,0.3);" onclick="selesaikanOven('${data.id}')">✅ Selesai</button>
+            <button class="btn btn-sm" style="background:rgba(74,222,128,0.15);color:var(--green);
+                    border:1px solid rgba(74,222,128,0.3);" onclick="selesaikanOven('${data.id}')">✅ Selesai</button>
             <button class="btn btn-del btn-sm" onclick="hapusOven('${data.id}')">🗑️</button>
         </div>
     </div>`;
@@ -169,22 +220,34 @@ function renderChamberAktif(ch, data, historyCount) {
 
 function renderChamberKosong(ch, historyCount) {
     return `
-    <div class="oven-card" style="border:1px dashed var(--border);opacity:0.85;">
+    <div class="oven-card" style="border:1px dashed var(--border);opacity:0.9;">
         <!-- Header -->
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
             <div>
-                <div style="font-family:var(--font-mono);font-size:16px;font-weight:700;color:var(--muted);">⬜ Chamber ${ch}</div>
-                <div style="font-size:10px;color:var(--muted);margin-top:2px;">${historyCount} siklus sebelumnya</div>
+                <div style="font-family:var(--font-mono);font-size:16px;font-weight:700;
+                            color:var(--muted);">⬜ Chamber ${ch}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px;">
+                    ${historyCount > 0
+                        ? `${historyCount} siklus sebelumnya`
+                        : 'Belum pernah digunakan'}
+                </div>
             </div>
-            <span style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);padding:3px 10px;border-radius:20px;font-size:10px;">KOSONG</span>
+            <span style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);
+                         padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;">
+                KOSONG
+            </span>
         </div>
 
-        <div style="text-align:center;padding:20px 0;color:var(--muted);">
-            <div style="font-size:28px;margin-bottom:8px;">🔲</div>
-            <div style="font-size:12px;">Chamber siap diisi</div>
+        <div style="text-align:center;padding:22px 0;color:var(--muted);">
+            <div style="font-size:32px;margin-bottom:10px;opacity:.4;">🔲</div>
+            <div style="font-size:12px;color:var(--muted);">Chamber siap diisi</div>
         </div>
 
-        <button class="btn btn-primary btn-sm" style="width:100%;" onclick="openOvenInputForm(${ch})">+ Isi Chamber ${ch}</button>
+        <button class="btn btn-primary btn-sm"
+                style="width:100%;padding:8px;font-size:12px;"
+                onclick="openOvenInputForm(${ch})">
+            + Isi Chamber ${ch}
+        </button>
     </div>`;
 }
 
@@ -434,7 +497,12 @@ window.renderOvenHistory = function () {
     const all    = window.ovenList || [];
 
     if (!all.length) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty">📭 Belum ada riwayat pengisian</td></tr>`;
+        if (tbody) tbody.innerHTML = `
+        <tr><td colspan="8" style="text-align:center;padding:36px 20px;color:var(--muted);">
+            <div style="font-size:28px;margin-bottom:8px;opacity:.4;">📭</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px;">Belum ada riwayat pengisian</div>
+            <div style="font-size:11px;">Isi salah satu chamber untuk memulai</div>
+        </td></tr>`;
         renderOvenStats();
         return;
     }
@@ -458,24 +526,36 @@ window.renderOvenHistory = function () {
             : 'var(--gold)';
 
         const statusBadge = o.status === 'isi'
-            ? `<span style="background:rgba(255,159,67,0.15);color:var(--orange);border:1px solid rgba(255,159,67,0.3);padding:2px 8px;border-radius:12px;font-size:10px;">● Aktif</span>`
-            : `<span style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2);padding:2px 8px;border-radius:12px;font-size:10px;">✓ Selesai</span>`;
+            ? `<span style="background:rgba(255,159,67,0.15);color:var(--orange);
+                            border:1px solid rgba(255,159,67,0.3);padding:2px 9px;
+                            border-radius:12px;font-size:10px;font-weight:700;
+                            display:inline-flex;align-items:center;gap:4px;">
+                   <span style="width:5px;height:5px;border-radius:50%;
+                                background:var(--orange);"></span>Aktif
+               </span>`
+            : `<span style="background:rgba(74,222,128,0.1);color:var(--green);
+                            border:1px solid rgba(74,222,128,0.25);padding:2px 9px;
+                            border-radius:12px;font-size:10px;font-weight:700;">✓ Selesai</span>`;
 
         const aksi = o.status === 'isi'
-            ? `<button class="btn btn-sm" style="background:rgba(74,222,128,0.1);color:var(--green);border:none;" onclick="selesaikanOven('${o.id}')">✅</button>
+            ? `<button class="btn btn-sm" style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,.25);" onclick="selesaikanOven('${o.id}')">✅</button>
                <button class="btn btn-edit btn-sm" onclick="openOvenEditForm('${o.id}')">✏️</button>
                <button class="btn btn-del btn-sm" onclick="hapusOven('${o.id}')">🗑️</button>`
             : `<button class="btn btn-del btn-sm" onclick="hapusOven('${o.id}')">🗑️</button>`;
 
-        return `<tr>
-            <td><b style="color:var(--gold)">Chamber ${o.chamber}</b></td>
-            <td>${o.openNo || '—'}</td>
-            <td class="right">${fmtDec(o.volume || 0, 2)} m³</td>
+        return `<tr onmouseover="this.style.background='var(--bg3)'"
+                    onmouseout="this.style.background=''">
+            <td><b style="font-family:var(--font-mono);color:var(--gold)">Ch. ${o.chamber}</b></td>
+            <td style="font-family:var(--font-mono);font-size:12px;">${o.openNo || '—'}</td>
+            <td style="text-align:right;font-family:var(--font-mono);">${fmtDec(o.volume || 0, 2)} m³</td>
             <td>${fmtDate(o.tglMulai) || '—'}</td>
-            <td>${o.status === 'selesai' ? fmtDate(o.tglSelesai) : (o.tglTarget ? `🎯 ${fmtDate(o.tglTarget)}` : '—')}</td>
-            <td class="right" style="color:${durasiCol}">${durasi} hari</td>
+            <td>${o.status === 'selesai'
+                    ? fmtDate(o.tglSelesai)
+                    : (o.tglTarget ? `<span style="color:var(--gold);">🎯 ${fmtDate(o.tglTarget)}</span>` : '—')}</td>
+            <td style="text-align:right;font-family:var(--font-mono);
+                       font-weight:700;color:${durasiCol};">${durasi} hari</td>
             <td>${statusBadge}</td>
-            <td style="display:flex;gap:4px;">${aksi}</td>
+            <td><div style="display:flex;gap:4px;">${aksi}</div></td>
         </tr>`;
     }).join('');
 
@@ -675,15 +755,23 @@ function initOvenExtras() {
     }
 }
 
-// Animasi shimmer untuk chamber aktif
-const shimmerStyle = document.createElement('style');
-shimmerStyle.textContent = `
+// Animasi shimmer untuk chamber aktif — dengan guard duplikat
+if (!document.getElementById('oven-shimmer-style')) {
+    const shimmerStyle = document.createElement('style');
+    shimmerStyle.id = 'oven-shimmer-style';
+    shimmerStyle.textContent = `
 @keyframes shimmer {
-    0%   { background-position: -200% center; }
-    100% { background-position: 200% center; }
+    0%   { background-position: 200% center; }
+    100% { background-position: -200% center; }
+}
+.oven-shimmer-bar {
+    background: linear-gradient(90deg, var(--orange) 0%, var(--gold) 40%, var(--orange) 60%, var(--orange) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2.2s linear infinite;
 }
 `;
-document.head.appendChild(shimmerStyle);
+    document.head.appendChild(shimmerStyle);
+}
 
 // Jalankan inisialisasi
 setTimeout(() => {

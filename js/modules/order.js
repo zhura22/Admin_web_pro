@@ -1,11 +1,12 @@
-// order.js - Versi Enhanced: Tracker Pemenuhan Order
-// Fitur baru: deadline, prioritas, status otomatis, progress bar,
-//             filter/search, summary cards, panel detail pengiriman
+// order.js - Versi Enhanced dengan Pemisahan Tab Aktif & Selesai
+// Fitur: deadline, prioritas, status otomatis, progress bar, filter/search, detail pengiriman
+// Sekarang order selesai berada di tab terpisah
 
 let orderEditId = null;
 let orderDetailId = null;
 let orderFilterStatus = 'semua';
 let orderSearchQuery = '';
+let orderActiveTab = 'active'; // 'active' atau 'completed'
 
 // ─────────────────────────────────────────────
 // HELPER: Hitung volume terkirim bersih (netto)
@@ -123,6 +124,35 @@ function injectOrderStyles() {
         .ofbtn:hover  { border-color: var(--gold); color: var(--gold); }
         .ofbtn.active { background: var(--gold); color: #111; border-color: var(--gold); }
 
+        /* ── Tab untuk Aktif/Selesai ── */
+        .order-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+        .order-tab-btn {
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 600;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .order-tab-btn.active {
+            background: var(--gold);
+            color: #111;
+            border-color: var(--gold);
+        }
+        .order-tab-btn:hover:not(.active) {
+            background: var(--gold-dim);
+            color: var(--gold-light);
+        }
+
         /* ── Order Status Badges ── */
         .os-badge {
             display: inline-block;
@@ -166,7 +196,7 @@ function injectOrderStyles() {
         }
 
         /* ── Table ── */
-        .order-tbl-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+        .order-tbl-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); margin-top: 12px; }
         .order-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
         .order-tbl thead tr { background: var(--bg3); border-bottom: 2px solid var(--gold-dim); }
         .order-tbl th { padding: 10px 12px; text-align: left; font-size: 11px;
@@ -280,33 +310,46 @@ window.renderOrder = function() {
     // ── Hitung data setiap order ──
     const enriched = orders.map(o => ({ o, ...getOrderStatus(o) }));
 
+    // ── Pisahkan berdasarkan status selesai ──
+    const activeOrders = enriched.filter(x => x.status !== 'Selesai');
+    const completedOrders = enriched.filter(x => x.status === 'Selesai');
+
     // ── Summary counts ──
-    const total     = enriched.length;
-    const selesai   = enriched.filter(x => x.status === 'Selesai').length;
-    const sebagian  = enriched.filter(x => x.status === 'Sebagian').length;
-    const mendesak  = enriched.filter(x => x.status === 'Mendesak').length;
+    const total = enriched.length;
+    const aktif = activeOrders.length;
+    const selesai = completedOrders.length;
+    const sebagian = enriched.filter(x => x.status === 'Sebagian').length;
+    const mendesak = enriched.filter(x => x.status === 'Mendesak').length;
     const terlambat = enriched.filter(x => x.status === 'Terlambat').length;
-    const pending   = enriched.filter(x => x.status === 'Pending').length;
+    const pending = enriched.filter(x => x.status === 'Pending').length;
 
     document.getElementById('order-count').textContent = total + ' order';
 
-    // ── Filter & Search ──
-    let filtered = enriched;
-    if (orderFilterStatus !== 'semua') {
-        filtered = filtered.filter(x => x.status.toLowerCase() === orderFilterStatus);
+    // ── Filter & Search (diterapkan ke data yang akan ditampilkan sesuai tab) ──
+    let currentData = (orderActiveTab === 'active') ? activeOrders : completedOrders;
+    
+    // Filter status tambahan (hanya untuk tab aktif, karena tab selesai hanya menampilkan status Selesai)
+    if (orderActiveTab === 'active' && orderFilterStatus !== 'semua') {
+        currentData = currentData.filter(x => x.status.toLowerCase() === orderFilterStatus);
     }
     if (orderSearchQuery) {
         const q = orderSearchQuery.toLowerCase();
-        filtered = filtered.filter(x =>
+        currentData = currentData.filter(x =>
             x.o.kodePO.toLowerCase().includes(q) ||
             x.o.perusahaan.toLowerCase().includes(q)
         );
     }
 
-    // ── Urutkan: terlambat → mendesak → sebagian → pending → selesai ──
-    const order_rank = { Terlambat:0, Mendesak:1, Sebagian:2, Pending:3, Selesai:4 };
-    filtered.sort((a, b) => (order_rank[a.status] || 0) - (order_rank[b.status] || 0)
-        || (a.o.deadline || 'z').localeCompare(b.o.deadline || 'z'));
+    // Urutkan: untuk aktif: terlambat → mendesak → sebagian → pending
+    // untuk selesai: berdasarkan tanggal deadline atau tanggal order terbaru
+    if (orderActiveTab === 'active') {
+        const order_rank = { Terlambat:0, Mendesak:1, Sebagian:2, Pending:3 };
+        currentData.sort((a, b) => (order_rank[a.status] || 99) - (order_rank[b.status] || 99)
+            || (a.o.deadline || 'z').localeCompare(b.o.deadline || 'z'));
+    } else {
+        // Selesai: urutkan dari yang terbaru (berdasarkan deadline atau tanggal)
+        currentData.sort((a, b) => (b.o.deadline || b.o.tanggal).localeCompare(a.o.deadline || a.o.tanggal));
+    }
 
     // ─────────────────────────
     // Render HTML
@@ -314,11 +357,15 @@ window.renderOrder = function() {
     let html = `
         <!-- Summary Cards -->
         <div class="order-summary-grid">
-            <div class="osc ${orderFilterStatus==='semua'?'active':''}" onclick="setOrderFilter('semua')">
+            <div class="osc" onclick="setOrderFilter('semua')">
                 <div class="osc-val c-gold">${total}</div>
                 <div class="osc-lbl">Total Order</div>
             </div>
-            <div class="osc ${orderFilterStatus==='selesai'?'active':''}" onclick="setOrderFilter('selesai')">
+            <div class="osc" onclick="switchOrderTab('active')">
+                <div class="osc-val c-blue">${aktif}</div>
+                <div class="osc-lbl">🟢 Aktif</div>
+            </div>
+            <div class="osc" onclick="switchOrderTab('completed')">
                 <div class="osc-val c-green">${selesai}</div>
                 <div class="osc-lbl">✅ Selesai</div>
             </div>
@@ -340,7 +387,13 @@ window.renderOrder = function() {
             </div>
         </div>
 
-        <!-- Search & Filter Toolbar -->
+        <!-- Tab Navigation -->
+        <div class="order-tabs">
+            <button class="order-tab-btn ${orderActiveTab === 'active' ? 'active' : ''}" onclick="switchOrderTab('active')">🟢 Order Aktif</button>
+            <button class="order-tab-btn ${orderActiveTab === 'completed' ? 'active' : ''}" onclick="switchOrderTab('completed')">✅ Order Selesai</button>
+        </div>
+
+        <!-- Search Bar -->
         <div class="order-toolbar">
             <input type="text" id="order-search-input"
                 placeholder="🔍 Cari kode PO atau perusahaan..."
@@ -351,13 +404,13 @@ window.renderOrder = function() {
 
     // ── Detail Panel (jika ada yang dibuka) ──
     if (orderDetailId) {
-        const found = enriched.find(x => x.o.id === orderDetailId);
+        const found = currentData.find(x => x.o.id === orderDetailId);
         if (found) html += renderDetailPanel(found);
     }
 
-    if (!filtered.length) {
+    if (!currentData.length) {
         html += `<div class="empty-state" style="padding:40px; text-align:center; color:var(--muted);">
-            📭 Tidak ada order yang sesuai filter.
+            📭 Tidak ada order ${orderActiveTab === 'active' ? 'aktif' : 'selesai'} yang sesuai filter.
         </div>`;
     } else {
         html += `
@@ -378,12 +431,11 @@ window.renderOrder = function() {
                 <tbody>
         `;
 
-        filtered.forEach(({ o, terkirim, sisa, persen, status, statusClass, statusIcon, terlambat, mendesak, stokBoard }) => {
+        currentData.forEach(({ o, terkirim, sisa, persen, status, statusClass, statusIcon, terlambat, mendesak, stokBoard }) => {
             const rowClass = terlambat ? 'row-terlambat' : (mendesak ? 'row-mendesak' : '');
             const progressColor = sisa <= 0 ? '#22c55e' : (terlambat ? '#f87171' : (mendesak ? '#f97316' : '#d4a017'));
             const sisaClass = sisa <= 0 ? 'sisa-ok' : (terlambat ? 'sisa-crit' : 'sisa-warn');
 
-            // Deadline label
             let deadlineHtml = '<span class="no-deadline">—</span>';
             if (o.deadline) {
                 const daysLeft = diffDaysOrder(today(), o.deadline);
@@ -396,8 +448,7 @@ window.renderOrder = function() {
                 }
             }
 
-            const prioHtml = o.prioritas === 'urgent'
-                ? `<span class="prio-urgent">URGENT</span>` : '';
+            const prioHtml = o.prioritas === 'urgent' ? `<span class="prio-urgent">URGENT</span>` : '';
 
             html += `
                 <tr class="${rowClass}" style="cursor:pointer;" onclick="toggleOrderDetail('${o.id}')">
@@ -430,6 +481,15 @@ window.renderOrder = function() {
     }
 
     container.innerHTML = html;
+};
+
+// ─────────────────────────────────────────────
+// SWITCH TAB
+// ─────────────────────────────────────────────
+window.switchOrderTab = function(tab) {
+    orderActiveTab = tab;
+    orderDetailId = null; // tutup detail panel saat ganti tab
+    window.renderOrder();
 };
 
 // ─────────────────────────────────────────────
@@ -546,7 +606,6 @@ window.openOrderForm = function(item) {
     document.getElementById('order-perusahaan').value= item?.perusahaan   || '';
     document.getElementById('order-volume').value    = item?.volumeOrder  || '';
 
-    // Field baru — tambahkan ke HTML form jika belum ada
     ensureExtraOrderFields();
 
     document.getElementById('order-deadline').value  = item?.deadline     || '';
@@ -563,22 +622,18 @@ window.closeOrderForm = function() {
     orderEditId = null;
 };
 
-// Tambahkan field baru ke form yang sudah ada di HTML (sekali saja)
 function ensureExtraOrderFields() {
     if (document.getElementById('order-deadline')) return;
     const formCard = document.getElementById('order-form');
     if (!formCard) return;
 
-    // Cari grid form yang sudah ada (grid2)
     const grid = formCard.querySelector('.grid2');
     if (grid) {
-        // Tambah field deadline
         const dlField = document.createElement('div');
         dlField.className = 'field';
         dlField.innerHTML = `<label>Deadline Pengiriman</label><input type="date" id="order-deadline">`;
         grid.appendChild(dlField);
 
-        // Tambah field prioritas
         const prioField = document.createElement('div');
         prioField.className = 'field';
         prioField.innerHTML = `<label>Prioritas</label>
@@ -588,7 +643,6 @@ function ensureExtraOrderFields() {
             </select>`;
         grid.appendChild(prioField);
 
-        // Tambah field catatan (span full width)
         const catatanField = document.createElement('div');
         catatanField.className = 'field';
         catatanField.style.gridColumn = 'span 2';
@@ -596,7 +650,6 @@ function ensureExtraOrderFields() {
             <input type="text" id="order-catatan" placeholder="Keterangan tambahan (opsional)">`;
         grid.appendChild(catatanField);
     } else {
-        // Fallback: tambah setelah grid
         const fallback = document.createElement('div');
         fallback.innerHTML = `
             <div class="grid2" style="margin-top:10px;">
@@ -630,7 +683,6 @@ window.saveOrder = function() {
         return;
     }
 
-    // Cek duplikat kode PO (kecuali saat edit)
     const duplikat = (window.orderList || []).find(
         o => o.kodePO.toLowerCase() === po.toLowerCase() && o.id !== orderEditId
     );
@@ -688,16 +740,10 @@ window.editOrder = function(id) {
     if (item) window.openOrderForm(item);
 };
 
-// ─────────────────────────────────────────────
-// Update ringkasan (dipanggil dari luar)
-// ─────────────────────────────────────────────
 window.updateAllOrderSummaries = function() {
     if (typeof renderBoardStockSummary === 'function') renderBoardStockSummary();
 };
 
-// ─────────────────────────────────────────────
-// Dropdown untuk form penjualan
-// ─────────────────────────────────────────────
 window.populateOrderDropdown = function(selectedOrderId = null) {
     const select = document.getElementById('jual-order');
     if (!select) return;
@@ -727,9 +773,6 @@ window.populateOrderDropdown = function(selectedOrderId = null) {
     }
 };
 
-// ─────────────────────────────────────────────
-// UTILITY
-// ─────────────────────────────────────────────
 function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, m =>
