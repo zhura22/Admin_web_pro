@@ -1,364 +1,410 @@
-// backup.js - Export/Import Data SUPER LENGKAP (Excel & JSON)
+// ═══════════════════════════════════════════════════════════════════════
+// backup.js  —  Export & Import JSON LENGKAP
+// Mencakup SELURUH data: kayu, sawmill, oven, ovenHistory, produksi,
+// sezing, penjualan, order, opname, boardStock, lmkb, appUsers,
+// activityLog, appSettings (prodAdmin_settings + kmsu_settings)
+// Versi format: 3.0
+// ═══════════════════════════════════════════════════════════════════════
 
-// ======================== EKSPOR JSON LENGKAP ========================
-window.exportFullData = function() {
+const BACKUP_VERSION = '3.0';
+
+// ─── Daftar lengkap semua key data ───────────────────────────────────
+const BACKUP_DATA_MAP = [
+    // [ windowVar,       storageKey                  ]
+    ['kayuList',        'prodAdmin_kayu'             ],
+    ['sawmillList',     'prodAdmin_sawmill'          ],
+    ['ovenList',        'prodAdmin_oven'             ],
+    ['ovenHistoryList', 'prodAdmin_ovenHistory'      ],
+    ['produksiList',    'prodAdmin_produksi'         ],
+    ['sezingList',      'prodAdmin_sezing'           ],
+    ['penjualanList',   'prodAdmin_penjualan'        ],
+    ['orderList',       'prodAdmin_order'            ],
+    ['opnameList',      'prodAdmin_opname'           ],
+    ['boardStockList',  'prodAdmin_boardStock'       ],
+    ['lmkbList',        'prodAdmin_lmkb'             ],
+    ['appUsers',        'prodAdmin_users'            ],
+    ['userList',        'prodAdmin_user'             ],
+    ['activityLog',     'prodAdmin_activity'         ],
+];
+
+// ─── Helper: ambil data dari window atau langsung dari localStorage ──
+function _readVar(varName, storageKey) {
+    if (window[varName] !== undefined) return window[varName];
     try {
-        const fullData = {
-            version: '2.0',
-            exportDate: new Date().toISOString(),
-            kayuList: window.kayuList || [],
-            sawmillList: window.sawmillList || [],
-            ovenList: window.ovenList || [],
-            produksiList: window.produksiList || [],
-            sezingList: window.sezingList || [],
-            penjualanList: window.penjualanList || [],
-            orderList: window.orderList || [],
-            ovenHistoryList: window.ovenHistoryList || [],
-            opnameList: window.opnameList || [],
-            boardStockList: window.boardStockList || [],
-            appUsers: window.appUsers || [],
-            activityLog: window.activityLog || [],
-            appSettings: window.appSettings || {}
+        const raw = localStorage.getItem(storageKey);
+        return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+}
+
+// ─── Helper: hitung jumlah record per key ────────────────────────────
+function _countRecords(val) {
+    if (Array.isArray(val)) return val.length;
+    if (val && typeof val === 'object') return Object.keys(val).length;
+    return 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EXPORT JSON LENGKAP
+// ═══════════════════════════════════════════════════════════════════════
+window.exportFullData = function () {
+    try {
+        // ── Kumpulkan semua data ──────────────────────────────────────
+        const payload = {
+            version:     BACKUP_VERSION,
+            exportDate:  new Date().toISOString(),
+            exportBy:    window.appSettings?.namaPerusahaan || 'KMSU',
+            // Settings dari dua sumber disatukan
+            settings: {
+                prodAdmin: (() => {
+                    try { return JSON.parse(localStorage.getItem('prodAdmin_settings') || 'null'); } catch { return null; }
+                })(),
+                kmsu: (() => {
+                    try { return JSON.parse(localStorage.getItem('kmsu_settings') || 'null'); } catch { return null; }
+                })() || window.appSettings || {},
+            },
+            data: {}
         };
-        const jsonStr = JSON.stringify(fullData, null, 2);
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `backup_lengkap_${today()}.json`;
+
+        let totalRecords = 0;
+        BACKUP_DATA_MAP.forEach(([varName, storageKey]) => {
+            const val = _readVar(varName, storageKey);
+            payload.data[varName] = val;
+            totalRecords += _countRecords(val);
+        });
+
+        payload.meta = {
+            totalRecords,
+            recordCounts: Object.fromEntries(
+                BACKUP_DATA_MAP.map(([v]) => [v, _countRecords(payload.data[v])])
+            )
+        };
+
+        // ── Download ─────────────────────────────────────────────────
+        const json = JSON.stringify(payload, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `backup_kmsu_${today()}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        toast('✅ Backup JSON lengkap berhasil');
-        logActivity('Export', 'Backup', 'Full data JSON');
+
+        // Catat tanggal backup di settings
+        if (window.appSettings) {
+            window.appSettings.lastBackup = today();
+            try { localStorage.setItem('kmsu_settings', JSON.stringify(window.appSettings)); } catch {}
+        }
+
+        if (typeof logActivity === 'function') logActivity('Export', 'Backup', `JSON v${BACKUP_VERSION} — ${totalRecords} record`);
+        if (typeof renderSettingsBackupAlert === 'function') renderSettingsBackupAlert();
+
+        const msg = `✅ Backup berhasil!\n` +
+            BACKUP_DATA_MAP.map(([v]) => `  · ${v}: ${_countRecords(payload.data[v])} record`).join('\n');
+        console.info(msg);
+        toast(`✅ Backup JSON lengkap (${totalRecords} record)`);
+
     } catch (e) {
-        console.error(e);
-        toast('❌ Gagal ekspor JSON: ' + e.message);
+        console.error('Export gagal:', e);
+        toast('❌ Gagal export: ' + e.message);
     }
 };
 
-// ======================== IMPOR JSON LENGKAP ========================
-window.importFullData = function(file) {
-    if (!file) {
-        toast('⚠️ Tidak ada file yang dipilih');
-        return;
-    }
-    if (!confirm("⚠️ PERINGATAN: Import akan MENIMPA semua data yang ada. Lanjutkan?")) return;
+// Alias agar tombol lama tetap berfungsi
+window.backupDataJSON = window.exportFullData;
+window.exportData     = window.exportFullData;
+
+// ═══════════════════════════════════════════════════════════════════════
+// IMPORT / RESTORE JSON
+// ═══════════════════════════════════════════════════════════════════════
+window.importFullData = function (file) {
+    if (!file) { toast('⚠️ Tidak ada file yang dipilih'); return; }
+
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onerror = () => toast('❌ Gagal membaca file');
+
+    reader.onload = function (e) {
         try {
-            const imported = JSON.parse(e.target.result);
-            if (!imported.version || !imported.kayuList) throw new Error('File backup tidak valid');
-            
-            window.kayuList = imported.kayuList || [];
-            window.sawmillList = imported.sawmillList || [];
-            window.ovenList = imported.ovenList || [];
-            window.produksiList = imported.produksiList || [];
-            window.sezingList = imported.sezingList || [];
-            window.penjualanList = imported.penjualanList || [];
-            window.orderList = imported.orderList || [];
-            window.ovenHistoryList = imported.ovenHistoryList || [];
-            window.opnameList = imported.opnameList || [];
-            window.boardStockList = imported.boardStockList || [];
-            window.appUsers = imported.appUsers || [];
-            window.activityLog = imported.activityLog || [];
-            window.appSettings = imported.appSettings || {};
-            
-            // Pastikan oven 7 chamber
-            if (!window.ovenList || window.ovenList.length === 0) {
-                window.ovenList = [];
-                for (let i = 1; i <= 7; i++) {
-                    window.ovenList.push({ chamber: i, volume: 0, tanggalMulai: "", status: "empty" });
+            const payload = JSON.parse(e.target.result);
+
+            // ── Validasi format ───────────────────────────────────────
+            if (!payload.version || !payload.data) {
+                // Coba format lama v1.0 (settings.js backupDataJSON)
+                if (payload.data === undefined && payload.settings !== undefined) {
+                    toast('⚠️ Format backup lama (v1.0) tidak didukung. Gunakan backup terbaru.');
+                    return;
                 }
-            } else {
-                const existing = window.ovenList.map(o => o.chamber);
-                for (let i = 1; i <= 7; i++) {
-                    if (!existing.includes(i)) window.ovenList.push({ chamber: i, volume: 0, tanggalMulai: "", status: "empty" });
-                }
-                window.ovenList.sort((a,b) => a.chamber - b.chamber);
+                throw new Error('File bukan backup KMSU yang valid');
             }
-            
-            persistAll();
-            if (typeof renderAll === 'function') renderAll();
-            else location.reload();
-            toast('✅ Restore data BERHASIL!');
-            logActivity('Import', 'Backup', 'Full data JSON');
-            setTimeout(() => location.reload(), 1000);
+
+            const ver     = payload.version;
+            const tanggal = payload.exportDate?.slice(0, 10) || '?';
+            const oleh    = payload.exportBy || '?';
+            const counts  = payload.meta?.recordCounts || {};
+            const countStr = BACKUP_DATA_MAP
+                .filter(([v]) => counts[v] > 0)
+                .map(([v]) => `${v}: ${counts[v]}`)
+                .join(', ');
+
+            const konfirmasi = confirm(
+                `RESTORE DATA KMSU\n\n` +
+                `File  : ${file.name}\n` +
+                `Versi : ${ver}\n` +
+                `Tanggal export: ${tanggal}\n` +
+                `Oleh  : ${oleh}\n\n` +
+                `Isi   : ${countStr || '(tidak ada data)'}\n\n` +
+                `⚠️  SEMUA DATA SAAT INI AKAN DITIMPA.\n` +
+                `Pastikan sudah backup data terbaru dulu!\n\n` +
+                `Lanjutkan restore?`
+            );
+            if (!konfirmasi) return;
+
+            // ── Restore semua data ────────────────────────────────────
+            BACKUP_DATA_MAP.forEach(([varName, storageKey]) => {
+                const val = payload.data[varName];
+                if (val !== undefined) {
+                    window[varName] = val;
+                    try { localStorage.setItem(storageKey, JSON.stringify(val)); } catch {}
+                }
+            });
+
+            // ── Restore settings (dua key) ────────────────────────────
+            if (payload.settings) {
+                const kmsuSettings = payload.settings.kmsu;
+                const prodSettings = payload.settings.prodAdmin;
+
+                if (kmsuSettings) {
+                    window.appSettings = typeof DEFAULT_SETTINGS !== 'undefined'
+                        ? Object.assign({}, DEFAULT_SETTINGS, kmsuSettings)
+                        : kmsuSettings;
+                    try { localStorage.setItem('kmsu_settings', JSON.stringify(window.appSettings)); } catch {}
+                }
+                if (prodSettings) {
+                    try { localStorage.setItem('prodAdmin_settings', JSON.stringify(prodSettings)); } catch {}
+                }
+            }
+
+            // ── Pastikan oven minimal punya 7 chamber ─────────────────
+            if (!window.ovenList || window.ovenList.length === 0) {
+                window.ovenList = Array.from({ length: 7 }, (_, i) => ({
+                    chamber: i + 1, volume: 0, tanggalMulai: '', status: 'empty'
+                }));
+            } else {
+                const existingChambers = window.ovenList.map(o => o.chamber);
+                for (let i = 1; i <= 7; i++) {
+                    if (!existingChambers.includes(i))
+                        window.ovenList.push({ chamber: i, volume: 0, tanggalMulai: '', status: 'empty' });
+                }
+                window.ovenList.sort((a, b) => a.chamber - b.chamber);
+            }
+            try { localStorage.setItem('prodAdmin_oven', JSON.stringify(window.ovenList)); } catch {}
+
+            // ── Pastikan minimal ada 1 user admin ─────────────────────
+            if (!window.appUsers || window.appUsers.length === 0) {
+                window.appUsers = [{ id: 'adminDefault', username: 'karyamuda', password: '1234', role: 'admin', nama: 'Administrator' }];
+                try { localStorage.setItem('prodAdmin_users', JSON.stringify(window.appUsers)); } catch {}
+            }
+
+            if (typeof logActivity === 'function') logActivity('Restore', 'Backup', `JSON v${ver} dari ${tanggal}`);
+
+            toast('✅ Restore berhasil! Halaman akan dimuat ulang...');
+            setTimeout(() => location.reload(), 1200);
+
         } catch (err) {
-            console.error(err);
-            toast('❌ Gagal import JSON: ' + err.message);
+            console.error('Import gagal:', err);
+            toast('❌ Gagal import: ' + err.message);
         }
     };
-    reader.onerror = () => toast('❌ Gagal membaca file');
+
     reader.readAsText(file);
 };
 
-// ======================== EKSPOR EXCEL SUPER LENGKAP (SEMUA DATA) ========================
-window.exportToExcel = function() {
-    ensureSheetJS(() => {
-        try {
-            const workbook = XLSX.utils.book_new();
-            
-            // 1. Sheet Kayu
-            const kayuSheet = XLSX.utils.json_to_sheet((window.kayuList || []).map(k => ({
-                'Tanggal': k.tanggal,
-                'No Nota': k.noNota,
-                'No Truk': k.noTruk || '',
-                'Suplier': k.suplier,
-                'Asal': k.asal || '',
-                'Jenis': k.jenis || 'glondong',
-                'Grade': k.grade || 'bagus',
-                'Jumlah Batang': k.jumlahBatang || 0,
-                'Volume (m³)': k.volume || 0,
-                'Harga (Rp)': k.harga || 0,
-                'Harga per m³': k.volume > 0 ? (k.harga / k.volume).toFixed(2) : 0
-            })));
-            XLSX.utils.book_append_sheet(workbook, kayuSheet, 'Kayu');
-            
-            // 2. Sheet Sawmill
-            const sawmillSheet = XLSX.utils.json_to_sheet((window.sawmillList || []).map(s => ({
-                'Tanggal': s.tanggal,
-                'Shift': s.shift || 'full',
-                'Batch Kayu': s.batchKayu || '',
-                'Open No': s.openNo || '',
-                'Proses Sawmill (m³)': s.prosesSawmill || 0,
-                'Total Volume Palet (m³)': s.totalVolumePalet || 0,
-                'Rendemen (%)': s.randemanSawmill || 0,
-                'Total Palet (pcs)': s.totalPalet || 0,
-                'Total SAP (lbr)': s.totalSap || 0,
-                'Tenaga Masuk': s.tenagaMasuk || 0,
-                'Tenaga Tidak Masuk': s.tenagaTidakMasuk || 0,
-                'Produktivitas (m³/org)': s.produktivitas || 0,
-                'Catatan': s.catatan || '',
-                'Chamber Oven': s.chamber || '',
-                'Volume Oven (m³)': s.volumeOven || 0,
-                'Tgl Mulai Oven': s.tanggalOven || ''
-            })));
-            XLSX.utils.book_append_sheet(workbook, sawmillSheet, 'Sawmill');
-            
-            // 3. Sheet Oven (Status)
-            const ovenSheet = XLSX.utils.json_to_sheet((window.ovenList || []).map(o => ({
-                'Chamber': o.chamber,
-                'Status': o.status,
-                'Volume (m³)': o.volume || 0,
-                'Tanggal Mulai': o.tanggalMulai || ''
-            })));
-            XLSX.utils.book_append_sheet(workbook, ovenSheet, 'Oven_Status');
-            
-            // 4. Sheet Oven History
-            const ovenHistSheet = XLSX.utils.json_to_sheet((window.ovenHistoryList || []).map(h => ({
-                'Chamber': h.chamber,
-                'Open No': h.openNo || '',
-                'Volume Masuk (m³)': h.volumeMasuk || 0,
-                'Volume Keluar (m³)': h.volumeKeluar || 0,
-                'Tanggal Masuk': h.tanggalMasuk || '',
-                'Tanggal Selesai': h.tanggalSelesai || '',
-                'Status': h.status
-            })));
-            XLSX.utils.book_append_sheet(workbook, ovenHistSheet, 'Oven_History');
-            
-            // 5. Sheet Produksi
-            const produksiSheet = XLSX.utils.json_to_sheet((window.produksiList || []).map(p => {
-                const s1 = p.shift1 || {}, s2 = p.shift2 || {};
-                return {
-                    'Tanggal': p.tanggal,
-                    'Batch': p.openNo || '',
-                    'Sumber Palet': (p.asalPalet || []).map(a => `${a.openNo}:${a.jumlahPalet}plt`).join('; '),
-                    'Shift1_PlanerPalet': s1.planerPalet || 0,
-                    'Shift1_PlanerBagus(m³)': s1.planerBagus || 0,
-                    'Shift1_PlanerMis(sap)': s1.planerMis || 0,
-                    'Shift1_RipsawIn(m³)': s1.ripsawIn || 0,
-                    'Shift1_Seri(lbr)': s1.seri || 0,
-                    'Shift1_Press(lbr)': s1.press || 0,
-                    'Shift1_TenagaMasuk': s1.masuk || 0,
-                    'Shift1_TenagaTidak': s1.tidakMasuk || 0,
-                    'Shift2_PlanerPalet': s2.planerPalet || 0,
-                    'Shift2_PlanerBagus(m³)': s2.planerBagus || 0,
-                    'Shift2_PlanerMis(sap)': s2.planerMis || 0,
-                    'Shift2_RipsawIn(m³)': s2.ripsawIn || 0,
-                    'Shift2_Seri(lbr)': s2.seri || 0,
-                    'Shift2_Press(lbr)': s2.press || 0,
-                    'Shift2_TenagaMasuk': s2.masuk || 0,
-                    'Shift2_TenagaTidak': s2.tidakMasuk || 0,
-                    'Limbah (m³)': p.limbah || 0,
-                    'Reject (pcs)': p.reject || 0,
-                    'Keterangan': p.keterangan || ''
-                };
-            }));
-            XLSX.utils.book_append_sheet(workbook, produksiSheet, 'Produksi');
-            
-            // 6. Sheet Sezing
-            const sezingSheet = XLSX.utils.json_to_sheet((window.sezingList || []).map(s => ({
-                'Tanggal': s.tanggal,
-                'Volume (m³)': s.volume || 0
-            })));
-            XLSX.utils.book_append_sheet(workbook, sezingSheet, 'Sezing');
-            
-            // 7. Sheet Penjualan
-            const penjualanSheet = XLSX.utils.json_to_sheet((window.penjualanList || []).map(p => {
-                const order = (window.orderList || []).find(o => o.id === p.orderId);
-                return {
-                    'Tanggal': p.tanggal,
-                    'Kode PO': order ? order.kodePO : '-',
-                    'Perusahaan': order ? order.perusahaan : '-',
-                    'PCS': p.pcs || 0,
-                    'Volume (m³)': p.volume || 0,
-                    'Retur (m³)': p.retur || 0,
-                    'Netto (m³)': (p.volume || 0) - (p.retur || 0),
-                    'No Truk': p.truk || '',
-                    'Tujuan': p.tujuan || '',
-                    'Total Harga (Rp)': p.harga || 0
-                };
-            }));
-            XLSX.utils.book_append_sheet(workbook, penjualanSheet, 'Penjualan');
-            
-            // 8. Sheet Order
-            const orderSheet = XLSX.utils.json_to_sheet((window.orderList || []).map(o => ({
-                'Tanggal': o.tanggal,
-                'Kode PO': o.kodePO,
-                'Perusahaan': o.perusahaan,
-                'Volume Order (m³)': o.volumeOrder || 0,
-                'Deadline': o.deadline || '',
-                'Prioritas': o.prioritas || 'normal',
-                'Catatan': o.catatan || ''
-            })));
-            XLSX.utils.book_append_sheet(workbook, orderSheet, 'Order');
-            
-            // 9. Sheet Opname
-            const opnameSheet = XLSX.utils.json_to_sheet((window.opnameList || []).map(op => ({
-                'Bulan': op.bulan,
-                'Stok Kayu Log (m³)': op.log || 0,
-                'Stok Palet Basah (m³)': op.basah || 0,
-                'Stok Palet Kering (m³)': op.kering || 0,
-                'Stok Board (m³)': op.board || 0,
-                'Stok Limbah (m³)': op.limbah || 0,
-                'Stok Awal Board (m³)': op.awalBoard || 0,
-                'Catatan': op.catatan || ''
-            })));
-            XLSX.utils.book_append_sheet(workbook, opnameSheet, 'Opname');
-            
-            // 10. Sheet Board Stock (manual)
-            const boardStockSheet = XLSX.utils.json_to_sheet((window.boardStockList || []).map(b => {
-                const order = (window.orderList || []).find(o => o.id === b.orderId);
-                return {
-                    'Tanggal': b.tanggal,
-                    'Kode PO': order ? order.kodePO : '-',
-                    'Stok Board (m³)': b.stok || 0,
-                    'Catatan': b.catatan || ''
-                };
-            }));
-            XLSX.utils.book_append_sheet(workbook, boardStockSheet, 'BoardStock');
-            
-            // 11. Sheet Users (sensitive, optional)
-            const usersSheet = XLSX.utils.json_to_sheet((window.appUsers || []).map(u => ({
-                'Username': u.username,
-                'Nama': u.nama || '',
-                'Role': u.role
-                // password tidak diekspor demi keamanan
-            })));
-            XLSX.utils.book_append_sheet(workbook, usersSheet, 'Users');
-            
-            // 12. Sheet Activity Log
-            const logSheet = XLSX.utils.json_to_sheet((window.activityLog || []).map(l => ({
-                'Waktu': l.timestamp,
-                'User': l.user,
-                'Aksi': l.aksi,
-                'Modul': l.modul,
-                'Detail': l.detail
-            })));
-            XLSX.utils.book_append_sheet(workbook, logSheet, 'ActivityLog');
-            
-            // 13. Sheet Settings
-            const settingsSheet = XLSX.utils.json_to_sheet([window.appSettings || {}]);
-            XLSX.utils.book_append_sheet(workbook, settingsSheet, 'Settings');
-            
-            // Simpan file
-            XLSX.writeFile(workbook, `data_lengkap_produksi_${today()}.xlsx`);
-            toast('✅ Export Excel SUPER LENGKAP berhasil! Semua data tersimpan.');
-            logActivity('Export', 'Excel', 'Full data export');
-        } catch(e) {
-            console.error(e);
-            toast('❌ Gagal export Excel: ' + e.message);
-        }
-    });
+// Alias
+window.restoreDataJSON = function (input) {
+    const file = input?.files?.[0];
+    if (file) window.importFullData(file);
+    if (input) input.value = '';
 };
 
-// ======================== FUNGSI PEMBANTU SHEETJS ========================
-function ensureSheetJS(callback) {
-    if (typeof XLSX !== 'undefined') {
-        callback();
-        return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
-    script.onload = () => callback();
-    script.onerror = () => toast('❌ Gagal memuat SheetJS, cek koneksi internet');
-    document.head.appendChild(script);
+// ═══════════════════════════════════════════════════════════════════════
+// RESET SEMUA DATA
+// ═══════════════════════════════════════════════════════════════════════
+window.resetAllData = function () {
+    const lanjut = confirm(
+        '⚠️  HAPUS SEMUA DATA PRODUKSI?\n\n' +
+        'Tindakan ini tidak bisa dibatalkan!\n' +
+        'Sangat disarankan backup dulu sebelum reset.\n\n' +
+        'Lanjutkan?'
+    );
+    if (!lanjut) return;
+
+    // Kosongkan semua kecuali users dan settings
+    BACKUP_DATA_MAP.forEach(([varName, storageKey]) => {
+        if (varName === 'appUsers') return; // jangan hapus user
+        window[varName] = Array.isArray(window[varName]) ? [] : {};
+        try { localStorage.setItem(storageKey, JSON.stringify(window[varName])); } catch {}
+    });
+
+    // Reset oven ke 7 chamber kosong
+    window.ovenList = Array.from({ length: 7 }, (_, i) => ({
+        chamber: i + 1, volume: 0, tanggalMulai: '', status: 'empty'
+    }));
+    try { localStorage.setItem('prodAdmin_oven', JSON.stringify(window.ovenList)); } catch {}
+
+    if (typeof logActivity === 'function') logActivity('Reset', 'Data', 'Semua data produksi direset');
+    if (typeof renderAll === 'function') renderAll();
+    if (typeof renderSettings === 'function') renderSettings();
+
+    toast('🗑️ Semua data produksi dihapus');
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// UI — Tab Export/Import
+// ═══════════════════════════════════════════════════════════════════════
+function buildBackupUI() {
+    const panel = document.getElementById('tab-export');
+    if (!panel) return;
+    if (document.getElementById('backup-ui-root')) return;
+
+    panel.innerHTML = `
+        <div class="panel-head">
+            <div>
+                <h2 class="panel-title">📁 Export / Import</h2>
+                <p class="panel-sub">Backup &amp; restore seluruh data produksi</p>
+            </div>
+        </div>
+
+        <div id="backup-ui-root">
+
+            <!-- ── EXPORT ─────────────────────────────────────────── -->
+            <div class="form-card" style="margin-bottom:16px;">
+                <div class="form-title" style="margin-bottom:16px;">💾 Export Backup JSON</div>
+
+                <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+                    Ekspor <strong style="color:var(--text);">seluruh data</strong> ke satu file <code>.json</code>:
+                    Kayu, Sawmill, Oven, Produksi, Sezing, Penjualan, Order, Opname,
+                    Board Stock, LMKB, Users, Log Aktivitas, dan Pengaturan.
+                </p>
+
+                <div id="backup-record-summary"
+                     style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+                            padding:12px 14px;margin-bottom:14px;font-size:11px;
+                            display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:4px 14px;">
+                    <span style="color:var(--muted);">Menghitung data...</span>
+                </div>
+
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                    <button class="btn btn-primary" onclick="window.exportFullData()"
+                            style="display:flex;align-items:center;gap:7px;padding:0 20px;height:38px;font-weight:600;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download Backup JSON
+                    </button>
+                    <span id="backup-last-info"
+                          style="font-size:10px;color:var(--muted);"></span>
+                </div>
+            </div>
+
+            <!-- ── IMPORT ─────────────────────────────────────────── -->
+            <div class="form-card" style="margin-bottom:16px;">
+                <div class="form-title" style="margin-bottom:16px;">📂 Restore dari Backup</div>
+
+                <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+                    Pilih file <code>.json</code> backup sebelumnya.
+                    <strong style="color:#f87171;">Semua data saat ini akan ditimpa.</strong>
+                    Pastikan sudah backup terbaru sebelum restore.
+                </p>
+
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                    <label class="btn btn-secondary"
+                           style="display:flex;align-items:center;gap:7px;cursor:pointer;
+                                  padding:0 20px;height:38px;font-weight:600;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        Pilih File Backup
+                        <input type="file" id="backup-import-file" accept=".json"
+                               style="display:none"
+                               onchange="if(this.files[0]) window.importFullData(this.files[0]); this.value='';">
+                    </label>
+
+                    <span style="font-size:11px;color:#f87171;">
+                        ⚠️ Restore menimpa semua data yang ada
+                    </span>
+                </div>
+            </div>
+
+            <!-- ── RESET ──────────────────────────────────────────── -->
+            <div class="form-card"
+                 style="border:1px solid rgba(248,113,113,.25);background:rgba(248,113,113,.04);">
+                <div class="form-title" style="margin-bottom:12px;color:#f87171;">⚠️ Zona Berbahaya</div>
+                <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+                    Hapus semua data produksi (kayu, sawmill, oven, produksi, sezing, penjualan, dst).
+                    Pengaturan dan data user tidak ikut terhapus.
+                </p>
+                <button class="btn btn-del"
+                        onclick="window.resetAllData()"
+                        style="display:flex;align-items:center;gap:7px;height:38px;padding:0 20px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                        <path d="M10 11v6m4-6v6"/>
+                        <path d="M9 6V4h6v2"/>
+                    </svg>
+                    Reset Semua Data Produksi
+                </button>
+            </div>
+
+        </div>`;
+
+    _refreshBackupSummary();
+    _refreshLastBackupInfo();
 }
 
-// ======================== TAMPILAN UI ========================
-function initBackupUI() {
-    const exportPanel = document.getElementById('tab-export');
-    if (!exportPanel) return;
-    const formCard = exportPanel.querySelector('.form-card');
-    if (!formCard) return;
-    if (document.getElementById('backup-group')) return;
-    
-    // Hapus tombol lama yang mungkin rancu
-    const existing = formCard.querySelectorAll('button,label');
-    existing.forEach(btn => btn.remove());
-    
-    const groupDiv = document.createElement('div');
-    groupDiv.id = 'backup-group';
-    groupDiv.style.display = 'flex';
-    groupDiv.style.flexDirection = 'column';
-    groupDiv.style.gap = '12px';
-    groupDiv.style.marginTop = '10px';
-    groupDiv.style.alignItems = 'center';
-    
-    // JSON Row
-    const jsonRow = document.createElement('div');
-    jsonRow.style.display = 'flex';
-    jsonRow.style.gap = '12px';
-    jsonRow.style.flexWrap = 'wrap';
-    jsonRow.style.justifyContent = 'center';
-    jsonRow.innerHTML = `
-        <button id="json-export-btn" class="btn btn-primary" style="min-width:180px">💾 Backup Lengkap (JSON)</button>
-        <label id="json-import-label" class="btn btn-secondary" style="cursor:pointer; min-width:160px; text-align:center">📂 Restore Data
-            <input type="file" id="json-import-file" accept=".json" style="display:none">
-        </label>
-        <span style="font-size:10px; color:var(--muted);">⚠️ Restore akan MENIMPA semua data</span>
-    `;
-    
-    // Excel Row
-    const excelRow = document.createElement('div');
-    excelRow.style.display = 'flex';
-    excelRow.style.gap = '12px';
-    excelRow.style.flexWrap = 'wrap';
-    excelRow.style.justifyContent = 'center';
-    excelRow.innerHTML = `
-        <button id="excel-export-btn" class="btn btn-secondary btn-sm" style="min-width:160px">📎 Export Excel (Lengkap)</button>
-        <span style="font-size:10px; color:var(--muted);">⚠️ Excel mencakup SEMUA data</span>
-    `;
-    
-    groupDiv.appendChild(jsonRow);
-    groupDiv.appendChild(excelRow);
-    formCard.appendChild(groupDiv);
-    
-    // Event listeners
-    document.getElementById('json-export-btn')?.addEventListener('click', () => window.exportFullData());
-    document.getElementById('excel-export-btn')?.addEventListener('click', () => window.exportToExcel());
-    const jsonImportFile = document.getElementById('json-import-file');
-    if (jsonImportFile) {
-        jsonImportFile.addEventListener('change', (e) => {
-            if (e.target.files && e.target.files[0]) window.importFullData(e.target.files[0]);
-            e.target.value = '';
-        });
-    }
+function _refreshBackupSummary() {
+    const el = document.getElementById('backup-record-summary');
+    if (!el) return;
+    const items = BACKUP_DATA_MAP.map(([varName, storageKey]) => {
+        const val   = _readVar(varName, storageKey);
+        const count = _countRecords(val);
+        const label = {
+            kayuList: 'Kayu', sawmillList: 'Sawmill', ovenList: 'Oven',
+            ovenHistoryList: 'Oven History', produksiList: 'Produksi',
+            sezingList: 'Sezing', penjualanList: 'Penjualan', orderList: 'Order',
+            opnameList: 'Opname', boardStockList: 'Board Stock',
+            lmkbList: 'LMKB', appUsers: 'Users (Auth)', userList: 'Users (Settings)',
+            activityLog: 'Log Aktivitas',
+        }[varName] || varName;
+        const color = count > 0 ? 'var(--text)' : 'var(--muted)';
+        return `<span style="color:${color};">${label}: <strong>${count}</strong></span>`;
+    });
+    el.innerHTML = items.join('');
 }
 
-// Jalankan inisialisasi
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initBackupUI);
-else initBackupUI();
-setTimeout(initBackupUI, 1000);
+function _refreshLastBackupInfo() {
+    const el = document.getElementById('backup-last-info');
+    if (!el) return;
+    const last = window.appSettings?.lastBackup;
+    el.textContent = last ? `Backup terakhir: ${last}` : 'Belum pernah backup';
+}
+
+// ─── Init ────────────────────────────────────────────────────────────
+(function init() {
+    function tryBuild() {
+        if (document.getElementById('tab-export')) buildBackupUI();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tryBuild);
+    else tryBuild();
+    // Fallback jika tab belum render saat load
+    setTimeout(tryBuild, 800);
+    setTimeout(tryBuild, 2000);
+})();

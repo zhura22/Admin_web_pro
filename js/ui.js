@@ -46,7 +46,12 @@ window.switchTab = function(name) {
     if (name === "oven") renderOvenStatus();
     if (name === "sezing") {
         document.getElementById("sezing-tanggal").value = today();
+        if (window.renderSezing) window.renderSezing();
+    }
+    if (name === "penjualan") {
+        document.getElementById("jual-tanggal").value = today();
         resetJualForm();
+        if (window.renderPenjualan) window.renderPenjualan();
     }
     if (name === "opname") {
         document.getElementById("opname-bulan").value = thisMonth();

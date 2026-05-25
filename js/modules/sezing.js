@@ -151,7 +151,7 @@ function renderSezingKPI() {
 function szKPI(label, value, color, sub) {
     return `
     <div style="background:var(--bg2);border:1px solid var(--gold-dim);
-                border-top:2px solid ${color};border-radius:12px;
+                border-top:3px solid ${color};border-radius:12px;
                 padding:14px 18px;box-shadow:0 3px 12px rgba(0,0,0,.18);
                 position:relative;overflow:hidden;">
         <div style="position:absolute;top:-12px;right:-12px;width:52px;height:52px;
@@ -294,8 +294,11 @@ function closeSezingForm() {
 }
 
 window.saveSezing = function () {
-    const tgl = document.getElementById('sz-tanggal')?.value;
-    const vol = parseFloat(document.getElementById('sz-volume')?.value);
+    // Dukung dua id: form dinamis (sz-tanggal) & form statis index.html (sezing-tanggal)
+    const tgl = (document.getElementById('sz-tanggal')?.value
+              || document.getElementById('sezing-tanggal')?.value || '').trim();
+    const vol = parseFloat(document.getElementById('sz-volume')?.value
+             || document.getElementById('sezing-volume')?.value || '');
     if (!tgl)         { toast('⚠️ Tanggal wajib diisi!'); return; }
     if (!vol || vol <= 0) { toast('⚠️ Volume wajib diisi!'); return; }
 

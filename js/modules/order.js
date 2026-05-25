@@ -30,7 +30,8 @@ function getLatestStockByOrderId(orderId) {
 function getOrderStatus(order) {
     const terkirim = window.getOrderTerpenuhi(order.id);
     const stokBoard = getLatestStockByOrderId(order.id);
-    const sisa = Math.max(0, order.volumeOrder - stokBoard - terkirim);
+    // sisa = volume yang BELUM terkirim (stokBoard tidak mengurangi sisa pengiriman)
+    const sisa = Math.max(0, order.volumeOrder - terkirim);
     const persen = order.volumeOrder > 0 ? (terkirim / order.volumeOrder) * 100 : 0;
     const todayStr = today();
     const terlambat = order.deadline && order.deadline < todayStr && sisa > 0;
@@ -751,7 +752,7 @@ window.populateOrderDropdown = function(selectedOrderId = null) {
     (window.orderList || []).forEach(o => {
         const terkirim  = window.getOrderTerpenuhi(o.id);
         const stokBoard = getLatestStockByOrderId(o.id);
-        const sisa      = Math.max(0, o.volumeOrder - stokBoard - terkirim);
+        const sisa      = Math.max(0, o.volumeOrder - terkirim);
         if (sisa > 0 || o.id === selectedOrderId) {
             const opt = document.createElement('option');
             opt.value = o.id;

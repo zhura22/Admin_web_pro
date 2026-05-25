@@ -28,34 +28,7 @@ function injectKayuStyles() {
     const s = document.createElement('style');
     s.id = 'kayu-styles';
     s.textContent = `
-        /* ─── KPI Cards ─── */
-        .ky-kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-        .ky-kpi {
-            background: var(--bg2);
-            border: 1px solid var(--gold-dim);
-            border-radius: 12px;
-            padding: 14px 16px;
-            text-align: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,.15);
-            position: relative;
-            overflow: hidden;
-        }
-        .ky-kpi-val { font-size: 22px; font-weight: 800; line-height: 1.15; }
-        .ky-kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 5px;
-                      text-transform: uppercase; letter-spacing: .06em; }
-        .ky-kpi-sub { font-size: 10px; margin-top: 4px;
-                      border-top: 1px solid var(--border); padding-top: 4px; }
-        .kv-gold   { color: var(--gold); }
-        .kv-green  { color: var(--green); }
-        .kv-blue   { color: #60a5fa; }
-        .kv-orange { color: var(--orange); }
-        .kv-red    { color: #f87171; }
-        .kv-muted  { color: var(--muted); }
+        /* ─── KPI Cards ─── removed, see kyKPI() ─── */
 
         /* ─── Trend chip (vs bulan lalu) ─── */
         .ky-trend-up   { color: var(--green); font-size: 10px; }
@@ -158,20 +131,7 @@ function injectKayuStyles() {
         .ky-spark-lbl { font-size: 8px; color: var(--muted); margin-top: 4px; white-space: nowrap; }
 
         /* ─── Summary tab ─── */
-        .ky-sum-kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 12px;
-            margin: 14px 0 18px;
-        }
-        .ky-sum-kpi {
-            background: var(--bg2); border: 1px solid var(--gold-dim);
-            border-radius: 12px; padding: 14px 16px; text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,.13);
-        }
-        .ky-sum-kpi-val { font-size: 22px; font-weight: 800; color: var(--gold); }
-        .ky-sum-kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 5px;
-                           text-transform: uppercase; letter-spacing: .06em; }
+        /* ─── sum KPI CSS removed, see kyKPI() ─── */
 
         /* Ranking bar */
         .ky-rank-item {
@@ -466,6 +426,24 @@ function generateKayuMonthOptions() {
 // ─────────────────────────────────────────────────
 // RENDER UTAMA
 // ─────────────────────────────────────────────────
+// ─── kyKPI — module-level agar bisa dipakai renderKayu & loadKayuSummary ──
+function kyKPI(label, value, color, sub) {
+    return `<div style="background:var(--bg2);border:1px solid var(--gold-dim);
+                border-top:3px solid ${color};border-radius:12px;
+                padding:14px 18px;box-shadow:0 3px 12px rgba(0,0,0,.18);
+                position:relative;overflow:hidden;">
+        <div style="position:absolute;top:-12px;right:-12px;width:52px;height:52px;
+                    border-radius:50%;background:${color};opacity:.07;pointer-events:none;"></div>
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
+                    letter-spacing:.9px;font-weight:600;">${label}</div>
+        <div style="font-size:21px;font-weight:700;color:${color};
+                    font-family:var(--font-mono);margin-top:6px;line-height:1.1;
+                    letter-spacing:-.5px;">${value}</div>
+        ${sub ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;
+                             padding-top:5px;border-top:1px solid var(--border);">${sub}</div>` : ''}
+    </div>`;
+}
+
 window.renderKayu = function() {
     injectKayuStyles();
     ensureHargaHintEl();
@@ -542,42 +520,17 @@ window.renderKayu = function() {
         </div>`;
     }
 
-    // ── KPI Cards ──
+    // kyKPI — lihat definisi module-level di bawah
+        // ── KPI Cards ──
+    const avgColor = avgM3 > avgPrv*HARGA_WARNING_FACTOR && avgPrv>0 ? 'var(--orange)' : 'var(--green)';
     const kpiHtml = `
-        <div class="ky-kpi-grid">
-            <div class="ky-kpi" style="border-top:2px solid var(--gold);">
-                <div class="ky-kpi-val kv-gold">${fmtDec(volTotal,2)}</div>
-                <div class="ky-kpi-lbl">Volume (m³)</div>
-                <div class="ky-kpi-sub">${trendArrow(volTotal, volPrv) || '<span class="ky-trend-flat">Tidak ada data lalu</span>'}</div>
-            </div>
-            <div class="ky-kpi" style="border-top:2px solid #60a5fa;">
-                <div class="ky-kpi-val kv-blue">Rp ${fmt(Math.round(hrgTotal/1000))}k</div>
-                <div class="ky-kpi-lbl">Total Nilai (Rp)</div>
-                <div class="ky-kpi-sub">${trendArrow(hrgTotal, hrgPrv) || '&nbsp;'}</div>
-            </div>
-            <div class="ky-kpi" style="border-top:2px solid ${avgM3 > avgPrv*HARGA_WARNING_FACTOR && avgPrv>0 ? 'var(--orange)' : 'var(--green)'};">
-                <div class="ky-kpi-val ${avgM3 > avgPrv*HARGA_WARNING_FACTOR && avgPrv>0 ? 'kv-orange' : 'kv-green'}">
-                    Rp ${fmt(Math.round(avgM3))}
-                </div>
-                <div class="ky-kpi-lbl">Avg Harga/m³</div>
-                <div class="ky-kpi-sub">${trendArrow(avgM3, avgPrv) || '&nbsp;'}</div>
-            </div>
-            <div class="ky-kpi" style="border-top:2px solid var(--muted);">
-                <div class="ky-kpi-val kv-muted">${notaTotal}</div>
-                <div class="ky-kpi-lbl">Total Nota</div>
-                <div class="ky-kpi-sub">&nbsp;</div>
-            </div>
-            <div class="ky-kpi" style="border-top:2px solid var(--green);">
-                <div class="ky-kpi-val kv-green">${pctBagus.toFixed(0)}%</div>
-                <div class="ky-kpi-lbl">Grade Bagus</div>
-                <div class="ky-kpi-sub" style="font-size:10px; color:var(--muted);">
-                    ${fmtDec(volBagus,1)} / ${fmtDec(volJelek,1)} m³</div>
-            </div>
-            <div class="ky-kpi" style="border-top:2px solid #60a5fa;">
-                <div class="ky-kpi-val kv-blue">${fmtDec(volTotal>0&&notaTotal>0?volTotal/notaTotal:0,2)}</div>
-                <div class="ky-kpi-lbl">Avg Vol/Nota (m³)</div>
-                <div class="ky-kpi-sub">&nbsp;</div>
-            </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+            ${kyKPI('Volume (m³)',       fmtDec(volTotal,2),                 'var(--gold)',   trendArrow(volTotal, volPrv) || 'Tidak ada data lalu')}
+            ${kyKPI('Total Nilai (Rp)', 'Rp '+fmt(Math.round(hrgTotal/1000))+'k', '#60a5fa', trendArrow(hrgTotal, hrgPrv) || null)}
+            ${kyKPI('Avg Harga/m³',     'Rp '+fmt(Math.round(avgM3)),        avgColor,       trendArrow(avgM3, avgPrv) || null)}
+            ${kyKPI('Total Nota',       notaTotal+'',                        'var(--muted)', null)}
+            ${kyKPI('Grade Bagus',      pctBagus.toFixed(0)+'%',            'var(--green)',  fmtDec(volBagus,1)+' / '+fmtDec(volJelek,1)+' m³')}
+            ${kyKPI('Avg Vol/Nota (m³)', fmtDec(volTotal>0&&notaTotal>0?volTotal/notaTotal:0,2), '#60a5fa', null)}
         </div>`;
 
     // ── Toolbar ──
@@ -589,6 +542,22 @@ window.renderKayu = function() {
             <input type="text" id="kayu-search" placeholder="🔍 Nota, suplier, asal, truk..."
                 value="${escHtml(kayuSearch)}" oninput="onKayuSearch(this.value)">
             <button class="btn btn-secondary btn-sm" onclick="onKayuReset()">Reset</button>
+            <button class="btn btn-sm" id="btn-export-kayu"
+                onclick="window.exportKayuExcel()"
+                style="background:var(--green);color:#fff;border:none;
+                       display:flex;align-items:center;gap:6px;padding:0 14px;
+                       font-weight:600;border-radius:8px;cursor:pointer;
+                       transition:opacity .15s;white-space:nowrap;"
+                onmouseover="this.style.opacity='.82'"
+                onmouseout="this.style.opacity='1'">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export Excel
+            </button>
         </div>`;
 
     // ── Tabel ──
@@ -757,23 +726,11 @@ window.loadKayuSummary = function() {
 
     let html = `
         <!-- KPI ringkasan -->
-        <div class="ky-sum-kpi-grid">
-            <div class="ky-sum-kpi" style="border-top:2px solid var(--gold);">
-                <div class="ky-sum-kpi-val">${fmtDec(volTotal,2)}</div>
-                <div class="ky-sum-kpi-lbl">Volume (m³)</div>
-            </div>
-            <div class="ky-sum-kpi" style="border-top:2px solid #60a5fa;">
-                <div class="ky-sum-kpi-val" style="color:#60a5fa;">Rp ${fmt(Math.round(hrgTotal/1000))}k</div>
-                <div class="ky-sum-kpi-lbl">Total Nilai (Rp)</div>
-            </div>
-            <div class="ky-sum-kpi" style="border-top:2px solid var(--green);">
-                <div class="ky-sum-kpi-val" style="color:var(--green);">Rp ${fmt(Math.round(avgM3))}</div>
-                <div class="ky-sum-kpi-lbl">Avg Harga/m³</div>
-            </div>
-            <div class="ky-sum-kpi" style="border-top:2px solid var(--muted);">
-                <div class="ky-sum-kpi-val" style="color:var(--muted);">${notaTotal}</div>
-                <div class="ky-sum-kpi-lbl">Jumlah Nota</div>
-            </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+            ${kyKPI('Volume (m³)',       fmtDec(volTotal,2),                      'var(--gold)',  null)}
+            ${kyKPI('Total Nilai (Rp)', 'Rp '+fmt(Math.round(hrgTotal/1000))+'k', '#60a5fa',     null)}
+            ${kyKPI('Avg Harga/m³',     'Rp '+fmt(Math.round(avgM3)),             'var(--green)', null)}
+            ${kyKPI('Jumlah Nota',       notaTotal+'',                            'var(--muted)', null)}
         </div>
 
         <!-- Komparasi vs bulan lalu -->
@@ -1019,3 +976,592 @@ setTimeout(() => {
     // Pasang listener form setelah DOM ready
     setTimeout(ensureHargaHintEl, 300);
 }, 500);
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT EXCEL — Tema sesuai web (ExcelJS)
+// ═══════════════════════════════════════════════════════════
+
+window.exportKayuExcel = async function () {
+    // ── Load ExcelJS via CDN jika belum ada ──
+    if (typeof ExcelJS === 'undefined') {
+        await new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+            s.onload = res; s.onerror = rej;
+            document.head.appendChild(s);
+        });
+    }
+
+    const toast = window.showToast || (msg => alert(msg));
+    toast('⏳ Menyiapkan file Excel...');
+
+    // ── Ambil data ──
+    const allList   = window.kayuList || [];
+    const filtered  = getFilteredKayu();
+    const selMonth  = getSelectedMonth() || thisMonth();
+    const prvMonth_ = prevMonth(selMonth);
+    const dataBulan = allList.filter(x => x.tanggal && x.tanggal.startsWith(selMonth));
+
+    const volTotal  = dataBulan.reduce((s, x) => s + (x.volume || 0), 0);
+    const hrgTotal  = dataBulan.reduce((s, x) => s + (x.harga  || 0), 0);
+    const avgM3     = avgHargaPerM3(dataBulan);
+    const avgM3All  = avgHargaPerM3(allList);
+
+    // Per Supplier
+    const supMap = new Map();
+    dataBulan.forEach(x => {
+        const k = x.suplier || '—';
+        if (!supMap.has(k)) supMap.set(k, { vol: 0, hrg: 0, n: 0 });
+        const e = supMap.get(k);
+        e.vol += (x.volume || 0); e.hrg += (x.harga || 0); e.n++;
+    });
+    const supArr = [...supMap.entries()]
+        .map(([name, v]) => ({ name, ...v, avgM3: v.vol > 0 ? v.hrg / v.vol : 0 }))
+        .sort((a, b) => b.vol - a.vol);
+
+    // Per Asal
+    const asalMap = new Map();
+    dataBulan.forEach(x => {
+        const k = x.asal || 'Tidak diketahui';
+        if (!asalMap.has(k)) asalMap.set(k, { vol: 0, hrg: 0, n: 0 });
+        const e = asalMap.get(k);
+        e.vol += (x.volume || 0); e.hrg += (x.harga || 0); e.n++;
+    });
+    const asalArr = [...asalMap.entries()]
+        .map(([name, v]) => ({ name, ...v, avgM3: v.vol > 0 ? v.hrg / v.vol : 0 }))
+        .sort((a, b) => b.vol - a.vol);
+
+    // Per Jenis
+    const jenisMap = new Map();
+    dataBulan.forEach(x => {
+        const k = x.jenis || 'glondong';
+        if (!jenisMap.has(k)) jenisMap.set(k, { vol: 0, hrg: 0, n: 0 });
+        const e = jenisMap.get(k);
+        e.vol += (x.volume || 0); e.hrg += (x.harga || 0); e.n++;
+    });
+
+    // ── Workbook ──
+    const wb = new ExcelJS.Workbook();
+    wb.creator  = 'Admin Produksi — KMSU';
+    wb.created  = new Date();
+    wb.modified = new Date();
+
+    // ── Palet warna tema ──
+    const C = {
+        gold:        'FFD4A017',
+        goldLight:   'FFFDE68A',
+        goldDim:     'FF2A1F00',
+        bg1:         'FF0F0F0F',
+        bg2:         'FF1A1A1A',
+        bg3:         'FF242424',
+        bgHeader:    'FF1C1200',
+        bgTotal:     'FF2A1E00',
+        textWhite:   'FFFFFFFF',
+        textMuted:   'FF9CA3AF',
+        textGold:    'FFD4A017',
+        green:       'FF16A34A',
+        greenBg:     'FF052E16',
+        red:         'FFF87171',
+        redBg:       'FF450A0A',
+        orange:      'FFEA580C',
+        blue:        'FF38BDF8',
+        border:      'FF2D2D2D',
+        borderGold:  'FF4A3800',
+    };
+
+    // ── Reusable style helpers ──
+    function hdrFont(size = 10, bold = true) {
+        return { name: 'Arial', size, bold, color: { argb: C.textWhite } };
+    }
+    function goldFill() {
+        return { type: 'pattern', pattern: 'solid', fgColor: { argb: C.gold } };
+    }
+    function darkFill(argb) {
+        return { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+    }
+    function thinBorder(color = C.border) {
+        const s = { style: 'thin', color: { argb: color } };
+        return { top: s, left: s, bottom: s, right: s };
+    }
+    function centerAlign(wrap = false) {
+        return { horizontal: 'center', vertical: 'middle', wrapText: wrap };
+    }
+    function rightAlign() { return { horizontal: 'right', vertical: 'middle' }; }
+    function leftAlign()  { return { horizontal: 'left',  vertical: 'middle' }; }
+    const FMT_INT   = '#,##0';
+    const FMT_DEC3  = '#,##0.000';
+    const FMT_DEC2  = '#,##0.00';
+    const FMT_RPM3  = '"Rp "#,##0';
+    const FMT_RP    = '"Rp "#,##0';
+    const FMT_PCT   = '0.0"%"';
+
+    function applyHdrStyle(cell, align = 'center') {
+        cell.font      = hdrFont();
+        cell.fill      = goldFill();
+        cell.alignment = align === 'right' ? rightAlign() : centerAlign(true);
+        cell.border    = thinBorder(C.borderGold);
+    }
+    function applyDataStyle(cell, align = 'left', isAlt = false) {
+        cell.fill      = darkFill(isAlt ? C.bg3 : C.bg2);
+        cell.alignment = align === 'right' ? rightAlign() : leftAlign();
+        cell.border    = thinBorder();
+        cell.font      = { name: 'Arial', size: 10, color: { argb: C.textWhite } };
+    }
+    function applyTotalStyle(cell, align = 'right') {
+        cell.fill      = darkFill(C.bgTotal);
+        cell.alignment = align === 'right' ? rightAlign() : leftAlign();
+        cell.border    = thinBorder(C.borderGold);
+        cell.font      = { name: 'Arial', size: 10, bold: true, color: { argb: C.textGold } };
+    }
+    function applySectionHdrStyle(cell) {
+        cell.fill      = darkFill(C.bgHeader);
+        cell.font      = { name: 'Arial', size: 11, bold: true, color: { argb: C.gold } };
+        cell.alignment = leftAlign();
+        cell.border    = { bottom: { style: 'medium', color: { argb: C.gold } } };
+    }
+
+    // ╔══════════════════════════════════════════════════════╗
+    // ║  SHEET 1 — DATA PEMBELIAN KAYU                       ║
+    // ╚══════════════════════════════════════════════════════╝
+    const ws1 = wb.addWorksheet('Data Pembelian', {
+        views: [{ state: 'frozen', xSplit: 0, ySplit: 4 }],
+        properties: { tabColor: { argb: C.gold } },
+    });
+
+    // --- Judul ---
+    ws1.mergeCells('A1:L1');
+    const titleCell = ws1.getCell('A1');
+    titleCell.value = 'LAPORAN PEMBELIAN KAYU — UD. KARYA MUDA SURYA UTAMA';
+    titleCell.font      = { name: 'Arial', size: 13, bold: true, color: { argb: C.gold } };
+    titleCell.fill      = darkFill(C.bgHeader);
+    titleCell.alignment = centerAlign();
+    ws1.getRow(1).height = 26;
+
+    ws1.mergeCells('A2:L2');
+    const subCell = ws1.getCell('A2');
+    subCell.value = `Periode: ${selMonth}  |  Filter aktif: ${filtered.length} transaksi  |  Dibuat: ${new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric' })}`;
+    subCell.font      = { name: 'Arial', size: 9, italic: true, color: { argb: C.textMuted } };
+    subCell.fill      = darkFill(C.bgHeader);
+    subCell.alignment = centerAlign();
+    ws1.getRow(2).height = 18;
+
+    // --- Row kosong ---
+    ws1.getRow(3).height = 6;
+    ws1.getRow(3).getCell(1).fill = darkFill(C.bg1);
+
+    // --- Header kolom ---
+    const hdrCols = ['#', 'Tanggal', 'No. Nota', 'No. Truk', 'Supplier', 'Asal', 'Jenis', 'Grade', 'Batang', 'Volume (m³)', 'Harga (Rp)', 'Rp / m³'];
+    const hdrRow = ws1.getRow(4);
+    hdrRow.height = 22;
+    hdrCols.forEach((h, i) => {
+        const cell = hdrRow.getCell(i + 1);
+        cell.value = h;
+        applyHdrStyle(cell, i >= 8 ? 'right' : 'center');
+    });
+    ws1.getRow(3).eachCell(cell => cell.fill = darkFill(C.bgHeader));
+
+    // --- Data rows ---
+    const dataRows = [...filtered].reverse();
+    dataRows.forEach((r, idx) => {
+        const rowNum  = 5 + idx;
+        const isAlt   = idx % 2 === 1;
+        const hM3     = r.volume > 0 ? r.harga / r.volume : 0;
+        const isWarn  = hM3 > avgM3All * HARGA_WARNING_FACTOR && avgM3All > 0;
+        const row     = ws1.getRow(rowNum);
+        row.height    = 18;
+
+        const vals = [
+            idx + 1,
+            r.tanggal ? new Date(r.tanggal + 'T00:00:00') : '',
+            r.noNota  || '',
+            r.noTruk  || '',
+            r.suplier || '',
+            r.asal    || '',
+            (r.jenis  || 'glondong') === 'papan' ? 'Papan' : 'Glondong',
+            (r.grade  || 'bagus')    === 'bagus'  ? 'Bagus'  : 'Jelek',
+            r.jumlahBatang || 0,
+            r.volume       || 0,
+            r.harga        || 0,
+            Math.round(hM3),
+        ];
+
+        vals.forEach((v, ci) => {
+            const cell = row.getCell(ci + 1);
+            cell.value = v;
+            applyDataStyle(cell, ci >= 8 ? 'right' : 'left', isAlt);
+
+            // Format khusus
+            if (ci === 1  && v) cell.numFmt = 'DD/MM/YYYY';
+            if (ci === 9 )      cell.numFmt = FMT_DEC3;
+            if (ci === 10)      cell.numFmt = FMT_RP;
+            if (ci === 11)      { cell.numFmt = FMT_RPM3; if (isWarn) { cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: C.orange } }; } }
+
+            // Warna grade
+            if (ci === 7) {
+                const isB = (r.grade || 'bagus') === 'bagus';
+                cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: isB ? C.green : C.red } };
+                cell.fill = darkFill(isB ? C.greenBg : C.redBg);
+            }
+            // Warna jenis
+            if (ci === 6) {
+                const iP = (r.jenis || 'glondong') === 'papan';
+                cell.font = { name: 'Arial', size: 10, color: { argb: iP ? 'FFA78BFA' : C.blue } };
+            }
+        });
+    });
+
+    // --- Baris TOTAL ---
+    const totRow = ws1.getRow(5 + dataRows.length);
+    totRow.height = 20;
+    const totVals = ['', 'TOTAL', '', '', '', '', '', '', 
+        dataRows.reduce((s, r) => s + (r.jumlahBatang || 0), 0),
+        dataRows.reduce((s, r) => s + (r.volume || 0), 0),
+        dataRows.reduce((s, r) => s + (r.harga  || 0), 0),
+        '',
+    ];
+    totVals.forEach((v, ci) => {
+        const cell = totRow.getCell(ci + 1);
+        cell.value = v;
+        applyTotalStyle(cell, ci >= 8 ? 'right' : 'left');
+        if (ci === 9 )  cell.numFmt = FMT_DEC3;
+        if (ci === 10)  cell.numFmt = FMT_RP;
+    });
+
+    // --- Lebar kolom ---
+    ws1.columns = [
+        { key:'no',   width: 5  },
+        { key:'tgl',  width: 13 },
+        { key:'nota', width: 16 },
+        { key:'truk', width: 13 },
+        { key:'sup',  width: 22 },
+        { key:'asal', width: 16 },
+        { key:'jen',  width: 11 },
+        { key:'grd',  width: 10 },
+        { key:'btg',  width: 10 },
+        { key:'vol',  width: 14 },
+        { key:'hrg',  width: 16 },
+        { key:'hm3',  width: 14 },
+    ];
+
+    // --- Freeze & autofilter ---
+    ws1.autoFilter = { from: 'A4', to: 'L4' };
+
+    // ╔══════════════════════════════════════════════════════╗
+    // ║  SHEET 2 — RINGKASAN BULANAN                         ║
+    // ╚══════════════════════════════════════════════════════╝
+    const ws2 = wb.addWorksheet('Ringkasan', {
+        properties: { tabColor: { argb: 'FF22C55E' } },
+    });
+    ws2.columns = [
+        { width: 28 }, { width: 18 }, { width: 18 },
+        { width: 12 }, { width: 18 }, { width: 18 },
+    ];
+
+    let r2 = 1; // row counter
+
+    // --- Judul ---
+    ws2.mergeCells(`A${r2}:F${r2}`);
+    const t2 = ws2.getCell(`A${r2}`);
+    t2.value     = `RINGKASAN PEMBELIAN KAYU — ${selMonth}`;
+    t2.font      = { name: 'Arial', size: 13, bold: true, color: { argb: C.gold } };
+    t2.fill      = darkFill(C.bgHeader);
+    t2.alignment = centerAlign();
+    ws2.getRow(r2).height = 26;
+    r2++;
+
+    ws2.mergeCells(`A${r2}:F${r2}`);
+    ws2.getCell(`A${r2}`).value = `UD. Karya Muda Surya Utama  |  Dibuat: ${new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric' })}`;
+    ws2.getCell(`A${r2}`).font      = { name: 'Arial', size: 9, italic: true, color: { argb: C.textMuted } };
+    ws2.getCell(`A${r2}`).fill      = darkFill(C.bgHeader);
+    ws2.getCell(`A${r2}`).alignment = centerAlign();
+    ws2.getRow(r2).height = 18;
+    r2 += 2;
+
+    function addSection(title) {
+        ws2.mergeCells(`A${r2}:F${r2}`);
+        const sc = ws2.getCell(`A${r2}`);
+        sc.value = title;
+        applySectionHdrStyle(sc);
+        ws2.getRow(r2).height = 22;
+        r2++;
+    }
+
+    function addTableHeader(cols) {
+        const row = ws2.getRow(r2);
+        row.height = 20;
+        cols.forEach((c, i) => {
+            const cell = row.getCell(i + 1);
+            cell.value = c.label;
+            applyHdrStyle(cell, c.align || 'center');
+        });
+        r2++;
+    }
+
+    function addTableRow(vals, isAlt, isTotal = false) {
+        const row = ws2.getRow(r2);
+        row.height = 18;
+        vals.forEach((v, i) => {
+            const cell = row.getCell(i + 1);
+            cell.value = v.val !== undefined ? v.val : v;
+            if (isTotal) applyTotalStyle(cell, typeof v === 'object' ? v.align : 'right');
+            else         applyDataStyle(cell,  typeof v === 'object' ? v.align : 'left', isAlt);
+            if (typeof v === 'object' && v.fmt)   cell.numFmt = v.fmt;
+            if (typeof v === 'object' && v.color) cell.font = { name: 'Arial', size: 10, bold: isTotal, color: { argb: v.color } };
+        });
+        r2++;
+    }
+
+    // ─── KPI SUMMARY ───
+    addSection('📊 KPI UTAMA — ' + selMonth);
+    const kpiHdrs = [
+        { label: 'Metrik', align: 'left' },
+        { label: 'Nilai', align: 'right' },
+        { label: 'Keterangan', align: 'left' },
+    ];
+    ws2.mergeCells(`D${r2}:F${r2}`); // merge remaining cols
+    addTableHeader(kpiHdrs);
+
+    const kpiRows = [
+        ['📦 Total Nota / Transaksi', { val: dataBulan.length, fmt: FMT_INT, align: 'right' }, { val: 'Jumlah transaksi pembelian', align: 'left' }],
+        ['🌲 Total Volume', { val: volTotal, fmt: FMT_DEC3, align: 'right' }, { val: 'm³', align: 'left' }],
+        ['💰 Total Nilai Pembelian', { val: hrgTotal, fmt: FMT_RP, align: 'right' }, { val: 'Rupiah', align: 'left' }],
+        ['📈 Avg Harga / m³', { val: Math.round(avgM3), fmt: FMT_RPM3, align: 'right' }, { val: 'Rata-rata per meter kubik', align: 'left' }],
+        ['✅ Volume Grade Bagus', { val: dataBulan.filter(x => x.grade==='bagus').reduce((s,x)=>s+(x.volume||0),0), fmt: FMT_DEC3, align: 'right', color: C.green }, { val: 'm³', align: 'left' }],
+        ['⚠️ Volume Grade Jelek', { val: dataBulan.filter(x => x.grade!=='bagus').reduce((s,x)=>s+(x.volume||0),0), fmt: FMT_DEC3, align: 'right', color: C.red   }, { val: 'm³', align: 'left' }],
+    ];
+    kpiRows.forEach((row, i) => addTableRow(row, i % 2 === 1));
+    r2++;
+
+    // ─── PER SUPPLIER ───
+    addSection('🏭 DETAIL PER SUPPLIER');
+    addTableHeader([
+        { label: 'Supplier',        align: 'left'   },
+        { label: 'Nota',            align: 'right'  },
+        { label: 'Volume (m³)',     align: 'right'  },
+        { label: '% Volume',        align: 'right'  },
+        { label: 'Total Nilai (Rp)',align: 'right'  },
+        { label: 'Avg Harga/m³',    align: 'right'  },
+    ]);
+    supArr.forEach((s, i) => {
+        const pct   = volTotal > 0 ? (s.vol / volTotal) * 100 : 0;
+        const isWrn = s.avgM3 > avgM3 * HARGA_WARNING_FACTOR;
+        addTableRow([
+            { val: s.name,                  align: 'left'  },
+            { val: s.n,   fmt: FMT_INT,     align: 'right' },
+            { val: s.vol, fmt: FMT_DEC3,    align: 'right' },
+            { val: pct / 100, fmt: '0.0%',  align: 'right' },
+            { val: s.hrg, fmt: FMT_RP,      align: 'right' },
+            { val: Math.round(s.avgM3), fmt: FMT_RPM3, align: 'right', color: isWrn ? C.orange : null },
+        ], i % 2 === 1);
+    });
+    addTableRow([
+        { val: 'TOTAL', align: 'left' },
+        { val: dataBulan.length,   fmt: FMT_INT,  align: 'right' },
+        { val: volTotal,           fmt: FMT_DEC3, align: 'right' },
+        { val: 1,                  fmt: '0.0%',   align: 'right' },
+        { val: hrgTotal,           fmt: FMT_RP,   align: 'right' },
+        { val: Math.round(avgM3),  fmt: FMT_RPM3, align: 'right' },
+    ], false, true);
+    r2++;
+
+    // ─── PER ASAL ───
+    addSection('📍 DETAIL PER ASAL KAYU');
+    addTableHeader([
+        { label: 'Asal',            align: 'left'  },
+        { label: 'Nota',            align: 'right' },
+        { label: 'Volume (m³)',     align: 'right' },
+        { label: '% Volume',        align: 'right' },
+        { label: 'Total Nilai (Rp)',align: 'right' },
+        { label: 'Avg Harga/m³',    align: 'right' },
+    ]);
+    asalArr.forEach((a, i) => {
+        const pct = volTotal > 0 ? (a.vol / volTotal) * 100 : 0;
+        addTableRow([
+            { val: a.name,                align: 'left'  },
+            { val: a.n,   fmt: FMT_INT,   align: 'right' },
+            { val: a.vol, fmt: FMT_DEC3,  align: 'right' },
+            { val: pct / 100, fmt: '0.0%', align: 'right' },
+            { val: a.hrg, fmt: FMT_RP,    align: 'right' },
+            { val: Math.round(a.vol > 0 ? a.hrg / a.vol : 0), fmt: FMT_RPM3, align: 'right' },
+        ], i % 2 === 1);
+    });
+    r2++;
+
+    // ─── PER JENIS ───
+    addSection('🪵 DETAIL PER JENIS KAYU');
+    addTableHeader([
+        { label: 'Jenis',           align: 'left'  },
+        { label: 'Nota',            align: 'right' },
+        { label: 'Volume (m³)',     align: 'right' },
+        { label: '% Volume',        align: 'right' },
+        { label: 'Total Nilai (Rp)',align: 'right' },
+        { label: 'Avg Harga/m³',    align: 'right' },
+    ]);
+    [...jenisMap.entries()].forEach(([k, v], i) => {
+        const pct = volTotal > 0 ? (v.vol / volTotal) * 100 : 0;
+        addTableRow([
+            { val: k === 'papan' ? 'Papan' : 'Glondong', align: 'left', color: k === 'papan' ? 'FFA78BFA' : C.blue },
+            { val: v.n,   fmt: FMT_INT,    align: 'right' },
+            { val: v.vol, fmt: FMT_DEC3,   align: 'right' },
+            { val: pct / 100, fmt: '0.0%', align: 'right' },
+            { val: v.hrg, fmt: FMT_RP,     align: 'right' },
+            { val: Math.round(v.vol > 0 ? v.hrg / v.vol : 0), fmt: FMT_RPM3, align: 'right' },
+        ], i % 2 === 1);
+    });
+
+    // ─── Catatan kaki ───
+    r2 += 2;
+    ws2.mergeCells(`A${r2}:F${r2}`);
+    ws2.getCell(`A${r2}`).value = `⚠️ Harga/m³ di atas rata-rata ×${HARGA_WARNING_FACTOR} ditandai warna oranye`;
+    ws2.getCell(`A${r2}`).font      = { name: 'Arial', size: 9, italic: true, color: { argb: C.orange } };
+    ws2.getCell(`A${r2}`).fill      = darkFill(C.bg2);
+    ws2.getCell(`A${r2}`).alignment = leftAlign();
+
+    // ╔══════════════════════════════════════════════════════╗
+    // ║  SHEET 3 — TREN BULANAN (6 Bulan Terakhir)           ║
+    // ╚══════════════════════════════════════════════════════╝
+    const ws3 = wb.addWorksheet('Tren Bulanan', {
+        properties: { tabColor: { argb: C.blue.replace('#','') || 'FF38BDF8' } },
+    });
+    ws3.columns = [
+        { width: 14 }, { width: 12 }, { width: 18 }, { width: 18 },
+        { width: 14 }, { width: 14 }, { width: 16 },
+    ];
+
+    let r3 = 1;
+    // Judul
+    ws3.mergeCells(`A${r3}:G${r3}`);
+    const t3 = ws3.getCell(`A${r3}`);
+    t3.value     = `TREN PEMBELIAN KAYU — 12 BULAN TERAKHIR`;
+    t3.font      = { name: 'Arial', size: 13, bold: true, color: { argb: C.gold } };
+    t3.fill      = darkFill(C.bgHeader);
+    t3.alignment = centerAlign();
+    ws3.getRow(r3).height = 26;
+    r3++;
+
+    ws3.mergeCells(`A${r3}:G${r3}`);
+    ws3.getCell(`A${r3}`).value = `UD. Karya Muda Surya Utama  |  Dibuat: ${new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric' })}`;
+    ws3.getCell(`A${r3}`).font      = { name: 'Arial', size: 9, italic: true, color: { argb: C.textMuted } };
+    ws3.getCell(`A${r3}`).fill      = darkFill(C.bgHeader);
+    ws3.getCell(`A${r3}`).alignment = centerAlign();
+    ws3.getRow(r3).height = 18;
+    r3 += 2;
+
+    // Header
+    const trendHdrs = [
+        { label: 'Bulan',           align: 'center' },
+        { label: 'Transaksi',       align: 'right'  },
+        { label: 'Volume (m³)',     align: 'right'  },
+        { label: 'Total Nilai (Rp)',align: 'right'  },
+        { label: 'Avg Harga/m³',    align: 'right'  },
+        { label: 'Grade Bagus %',   align: 'right'  },
+        { label: 'vs Bulan Lalu',   align: 'center' },
+    ];
+    const tHdrRow = ws3.getRow(r3);
+    tHdrRow.height = 20;
+    trendHdrs.forEach((h, i) => {
+        const cell = tHdrRow.getCell(i + 1);
+        cell.value = h.label;
+        applyHdrStyle(cell, h.align);
+    });
+    r3++;
+
+    // Ambil 12 bulan terakhir
+    const trendMonths = [];
+    const nowDate = new Date();
+    for (let i = 11; i >= 0; i--) {
+        const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
+        trendMonths.push(d.toISOString().slice(0, 7));
+    }
+
+    let prevVolTrend = 0;
+    trendMonths.forEach((m, idx) => {
+        const md   = allList.filter(x => x.tanggal && x.tanggal.startsWith(m));
+        const vol  = md.reduce((s, x) => s + (x.volume || 0), 0);
+        const hrg  = md.reduce((s, x) => s + (x.harga  || 0), 0);
+        const n    = md.length;
+        const avgH = vol > 0 ? hrg / vol : 0;
+        const volB = md.filter(x => x.grade === 'bagus').reduce((s,x) => s+(x.volume||0), 0);
+        const pctB = vol > 0 ? (volB / vol) * 100 : 0;
+        const diff = prevVolTrend > 0 ? ((vol - prevVolTrend) / prevVolTrend) * 100 : null;
+
+        const isAlt = idx % 2 === 1;
+        const isCur = m === selMonth;
+        const row   = ws3.getRow(r3);
+        row.height  = 18;
+
+        const vals = [
+            { val: m,           align: 'center' },
+            { val: n,           align: 'right', fmt: FMT_INT  },
+            { val: vol,         align: 'right', fmt: FMT_DEC3 },
+            { val: hrg,         align: 'right', fmt: FMT_RP   },
+            { val: Math.round(avgH), align: 'right', fmt: FMT_RPM3 },
+            { val: pctB / 100,  align: 'right', fmt: '0.0%',
+              color: pctB >= 80 ? C.green : pctB >= 60 ? null : C.red },
+            { val: diff !== null ? diff / 100 : '—', align: 'center',
+              fmt: diff !== null ? '+0.0%;-0.0%;0.0%' : '@',
+              color: diff === null ? C.textMuted : diff >= 0 ? C.green : C.red },
+        ];
+
+        vals.forEach((v, ci) => {
+            const cell = row.getCell(ci + 1);
+            cell.value = v.val;
+            if (isCur) {
+                cell.fill   = darkFill(C.bgTotal);
+                cell.font   = { name: 'Arial', size: 10, bold: true, color: { argb: v.color || C.textGold } };
+                cell.border = thinBorder(C.borderGold);
+            } else {
+                applyDataStyle(cell, v.align, isAlt);
+                if (v.color) cell.font = { name: 'Arial', size: 10, color: { argb: v.color } };
+            }
+            cell.alignment = v.align === 'right' ? rightAlign() : centerAlign();
+            if (v.fmt && v.val !== '—') cell.numFmt = v.fmt;
+        });
+
+        if (vol > 0) prevVolTrend = vol;
+        r3++;
+    });
+
+    // Total baris
+    const totMd = allList;
+    const totVolAll = totMd.reduce((s, x) => s + (x.volume || 0), 0);
+    const totHrgAll = totMd.reduce((s, x) => s + (x.harga  || 0), 0);
+    const totRow3   = ws3.getRow(r3);
+    totRow3.height  = 20;
+    [
+        { val: 'TOTAL (semua)', align: 'left' },
+        { val: totMd.length, fmt: FMT_INT, align: 'right' },
+        { val: totVolAll, fmt: FMT_DEC3, align: 'right' },
+        { val: totHrgAll, fmt: FMT_RP,   align: 'right' },
+        { val: Math.round(totVolAll > 0 ? totHrgAll / totVolAll : 0), fmt: FMT_RPM3, align: 'right' },
+        { val: '', align: 'center' },
+        { val: '', align: 'center' },
+    ].forEach((v, ci) => {
+        const cell = totRow3.getCell(ci + 1);
+        cell.value = v.val !== undefined ? v.val : v;
+        applyTotalStyle(cell, typeof v === 'object' ? v.align : 'right');
+        if (typeof v === 'object' && v.fmt) cell.numFmt = v.fmt;
+    });
+
+    // Keterangan baris highlighted
+    r3 += 2;
+    ws3.mergeCells(`A${r3}:G${r3}`);
+    ws3.getCell(`A${r3}`).value = `★ Baris berwarna emas = bulan yang sedang dipilih (${selMonth})`;
+    ws3.getCell(`A${r3}`).font      = { name: 'Arial', size: 9, italic: true, color: { argb: C.gold } };
+    ws3.getCell(`A${r3}`).fill      = darkFill(C.bgTotal);
+    ws3.getCell(`A${r3}`).alignment = leftAlign();
+
+    // ── Download ──
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href       = url;
+    a.download   = `Pembelian_Kayu_${selMonth}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast('✅ Export Excel berhasil! (3 sheet: Data · Ringkasan · Tren)');
+};

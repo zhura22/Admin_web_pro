@@ -21,30 +21,8 @@ function injectSawmillStyles() {
     const s = document.createElement('style');
     s.id = 'sawmill-styles';
     s.textContent = `
-        /* ─── KPI Cards ─── */
-        .sw-kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 10px;
-            margin-bottom: 18px;
-        }
-        .sw-kpi {
-            background: var(--bg3);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px 14px;
-            text-align: center;
-        }
-        .sw-kpi-val { font-size: 24px; font-weight: 800; line-height: 1.1; }
-        .sw-kpi-lbl { font-size: 10px; color: var(--muted); margin-top: 4px; }
-        .sw-kv-green  { color: var(--green); }
-        .sw-kv-gold   { color: var(--gold); }
-        .sw-kv-orange { color: var(--orange); }
-        .sw-kv-red    { color: #f87171; }
-        .sw-kv-blue   { color: #60a5fa; }
-        .sw-kv-muted  { color: var(--muted); }
-
-        /* ─── Rendemen Gauge ─── */
+        /* ─── KPI Cards CSS removed, see swKPI() ─── */
+                /* ─── Rendemen Gauge ─── */
         .rend-gauge-wrap {
             display: flex;
             align-items: center;
@@ -705,6 +683,9 @@ function rendClass(pct) {
 function rendClassC(pct) {
     return pct >= RENDEMEN_TARGET ? 'rend-c-good' : (pct >= RENDEMEN_WARNING ? 'rend-c-warn' : 'rend-c-bad');
 }
+function rendClassColor(pct) {
+    return pct >= RENDEMEN_TARGET ? 'var(--green)' : (pct >= RENDEMEN_WARNING ? 'var(--orange)' : 'var(--red)');
+}
 function rendCardClass(pct) {
     return pct >= RENDEMEN_TARGET ? 'rend-card-good' : (pct >= RENDEMEN_WARNING ? 'rend-card-warn' : 'rend-card-bad');
 }
@@ -771,40 +752,32 @@ window.renderSawmill = function() {
     const countEl = document.getElementById('sawmill-count');
     if (countEl) countEl.textContent = `${allData.length} laporan (filter: ${filtered.length} tampil)`;
 
-    // ─────── Build HTML ───────
+    function swKPI(label, value, color, sub) {
+        return `<div style="background:var(--bg2);border:1px solid var(--gold-dim);
+                    border-top:3px solid ${color};border-radius:12px;
+                    padding:14px 18px;box-shadow:0 3px 12px rgba(0,0,0,.18);
+                    position:relative;overflow:hidden;">
+            <div style="position:absolute;top:-12px;right:-12px;width:52px;height:52px;
+                        border-radius:50%;background:${color};opacity:.07;pointer-events:none;"></div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
+                        letter-spacing:.9px;font-weight:600;">${label}</div>
+            <div style="font-size:21px;font-weight:700;color:${color};
+                        font-family:var(--font-mono);margin-top:6px;line-height:1.1;
+                        letter-spacing:-.5px;">${value}</div>
+            ${sub ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;
+                                 padding-top:5px;border-top:1px solid var(--border);">${sub}</div>` : ''}
+        </div>`;
+    }
+        // ─────── Build HTML ───────
     let html = `
         <!-- KPI Cards -->
-        <div class="sw-kpi-grid">
-            <div class="sw-kpi">
-                <div class="sw-kpi-val sw-kv-gold">${fmtDec(volTotal,2)}</div>
-                <div class="sw-kpi-lbl">Volume Proses (m³)</div>
-            </div>
-            <div class="sw-kpi">
-                <div class="sw-kpi-val sw-kv-blue">${fmtDec(paletVol,2)}</div>
-                <div class="sw-kpi-lbl">Total Palet (m³)</div>
-            </div>
-            <div class="sw-kpi">
-                <div class="sw-kpi-val ${rendClassC(avgRendemen)}">${avgRendemen.toFixed(1)}%</div>
-                <div class="sw-kpi-lbl">Avg Rendemen</div>
-                <div class="rend-gauge-wrap" style="margin-top:4px;">
-                    <div class="rend-bar-outer">
-                        <div class="rend-bar-inner ${rendClass(avgRendemen)}"
-                            style="width:${Math.min(avgRendemen,100).toFixed(1)}%;"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="sw-kpi">
-                <div class="sw-kpi-val sw-kv-green">${fmt(totalSAP)}</div>
-                <div class="sw-kpi-lbl">Total SAP (lbr)</div>
-            </div>
-            <div class="sw-kpi">
-                <div class="sw-kpi-val sw-kv-orange">${fmtDec(prodTK,3)}</div>
-                <div class="sw-kpi-lbl">Produktivitas (m³/org)</div>
-            </div>
-            <div class="sw-kpi">
-                <div class="sw-kpi-val sw-kv-muted">${filtered.length}</div>
-                <div class="sw-kpi-lbl">Hari Laporan</div>
-            </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;">
+            ${swKPI('Volume Proses (m³)',    fmtDec(volTotal,2),           'var(--gold)',    null)}
+            ${swKPI('Total Palet (m³)',      fmtDec(paletVol,2),           '#60a5fa',        null)}
+            ${swKPI('Avg Rendemen',          avgRendemen.toFixed(1)+'%',   rendClassColor(avgRendemen), 'Target: 65%')}
+            ${swKPI('Total SAP (lbr)',       fmt(totalSAP),                'var(--green)',   null)}
+            ${swKPI('Produktivitas (m³/org)',fmtDec(prodTK,3),             'var(--orange)',  null)}
+            ${swKPI('Hari Laporan',          filtered.length+'',           'var(--muted)',   null)}
         </div>
 
         <!-- Trend Rendemen Sparkline -->

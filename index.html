@@ -46,7 +46,8 @@
                 <button class="sidebar-item" data-tab="sawmill"><span class="icon">📋</span>Laporan Sawmill</button>
                 <button class="sidebar-item" data-tab="oven"><span class="icon">🔥</span>Status Oven</button>
                 <button class="sidebar-item" data-tab="produksi"><span class="icon">📦</span>Laporan Produksi</button>
-                <button class="sidebar-item" data-tab="sezing"><span class="icon">📏</span>Sezing & Penjualan</button>
+                <button class="sidebar-item" data-tab="sezing"><span class="icon">📏</span>Sezing</button>
+                <button class="sidebar-item" data-tab="penjualan"><span class="icon">💰</span>Penjualan</button>
                 <button class="sidebar-item" data-tab="order"><span class="icon">📑</span>Order Masuk</button>
             </div>
             <div class="sidebar-divider"></div>
@@ -213,7 +214,7 @@
             <!-- Sezing & Penjualan - default daftar -->
             <div id="tab-sezing" class="panel hidden">
                 <div class="panel-head">
-                    <div><h2 class="panel-title">📏 Sezing & Penjualan</h2><p class="panel-sub">Laminating Board & Limbah</p></div>
+                    <div><h2 class="panel-title">📏 Sezing</h2><p class="panel-sub">Hasil Sezing Laminating Board</p></div>
                     <div class="flex gap10 items-center wrap">
                         <div class="subtab-toggle flex gap4">
                             <button class="btn btn-secondary subtab-btn" data-subtab="sezing-input">+ Input</button>
@@ -223,17 +224,33 @@
                 </div>
                 <div id="sezing-input" class="subtab-panel hidden">
                     <div class="form-card"><div class="form-title">📐 Hasil Sezing</div><div class="grid2"><div class="field"><label>Tanggal *</label><input type="date" id="sezing-tanggal"></div><div class="field"><label>Volume (m³) *</label><input type="number" step="any" id="sezing-volume" min="0"></div></div><div class="form-actions"><button class="btn btn-primary" onclick="window.saveSezing()">💾 Simpan</button></div></div>
-                    <div class="form-card mt16"><div class="form-title">💰 Penjualan</div><div class="grid3"><div class="field"><label>Tanggal *</label><input type="date" id="jual-tanggal"></div><div class="field"><label>Pcs *</label><input type="number" id="jual-pcs" min="0"></div><div class="field"><label>Volume (m³)*</label><input type="number" step="any" id="jual-volume" min="0"></div><div class="field"><label>No.Truk *</label><input type="text" id="jual-truk"></div><div class="field"><label>Tujuan *</label><input type="text" id="jual-tujuan"></div><div class="field"><label>Order *</label><select id="jual-order"><option value="">-- Pilih --</option></select></div><div class="field"><label>Total Harga *</label><input type="number" id="jual-harga" min="0"></div><div class="field"><label>Retur (m³)</label><input type="number" step="any" id="jual-retur" min="0" value="0"></div></div><div class="form-actions"><button class="btn btn-secondary" onclick="window.resetJualForm()">🔄 Reset</button><button class="btn btn-primary" id="btn-save-penjualan">💾 Simpan</button></div></div>
                 </div>
                 <div id="sezing-list" class="subtab-panel">
                     <div id="sezing-list-content"></div>
-                    <div id="penjualan-list-content" class="mt16"></div>
                 </div>
-                <!-- Container stok board manual -->
                 <div id="board-stock-form-container" class="form-card" style="margin-bottom: 20px;"></div>
                 <div id="board-stock-latest-container" class="rekap-stats" style="margin-bottom: 20px;"></div>
                 <div id="board-stock-history"></div>
                 <div id="realtime-stock-container" class="rekap-stats" style="margin-bottom: 20px;"></div>
+            </div>
+
+            <!-- Penjualan -->
+            <div id="tab-penjualan" class="panel hidden">
+                <div class="panel-head">
+                    <div><h2 class="panel-title">💰 Penjualan</h2><p class="panel-sub">Data Penjualan &amp; Pengiriman</p></div>
+                    <div class="flex gap10 items-center wrap">
+                        <div class="subtab-toggle flex gap4">
+                            <button class="btn btn-secondary subtab-btn" data-subtab="penjualan-input">+ Input</button>
+                            <button class="btn btn-primary subtab-btn active" data-subtab="penjualan-list">📋 Daftar</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="penjualan-input" class="subtab-panel hidden">
+                    <div class="form-card"><div class="form-title">💰 Input Penjualan</div><div class="grid3"><div class="field"><label>Tanggal *</label><input type="date" id="jual-tanggal"></div><div class="field"><label>Pcs *</label><input type="number" id="jual-pcs" min="0"></div><div class="field"><label>Volume (m³)*</label><input type="number" step="any" id="jual-volume" min="0"></div><div class="field"><label>No.Truk *</label><input type="text" id="jual-truk"></div><div class="field"><label>Tujuan *</label><input type="text" id="jual-tujuan"></div><div class="field"><label>Order *</label><select id="jual-order"><option value="">-- Pilih --</option></select></div><div class="field"><label>Total Harga *</label><input type="number" id="jual-harga" min="0"></div><div class="field"><label>Retur (m³)</label><input type="number" step="any" id="jual-retur" min="0" value="0"></div></div><div class="form-actions"><button class="btn btn-secondary" onclick="window.resetJualForm()">🔄 Reset</button><button class="btn btn-primary" id="btn-save-penjualan">💾 Simpan</button></div></div>
+                </div>
+                <div id="penjualan-list" class="subtab-panel">
+                    <div id="penjualan-list-content"></div>
+                </div>
             </div>
 
             <!-- Batch Tracking -->

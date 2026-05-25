@@ -99,15 +99,19 @@ function renderRekapKPI(bulan) {
 
 function rKPI(label, value, color, sub) {
     return `
-    <div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;
-                padding:14px 16px;cursor:default;transition:border-color .2s;">
-        <div style="font-size:9.5px;color:var(--muted);text-transform:uppercase;
-                    letter-spacing:.8px;">${label}</div>
-        <div style="font-size:19px;font-weight:700;color:${color};
-                    font-family:var(--font-mono);margin-top:5px;line-height:1.2;">
-            ${value}
-        </div>
-        ${sub ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;">${sub}</div>` : ''}
+    <div style="background:var(--bg2);border:1px solid var(--gold-dim);
+                border-top:3px solid ${color};border-radius:12px;
+                padding:14px 18px;box-shadow:0 3px 12px rgba(0,0,0,.18);
+                position:relative;overflow:hidden;">
+        <div style="position:absolute;top:-12px;right:-12px;width:52px;height:52px;
+                    border-radius:50%;background:${color};opacity:.07;pointer-events:none;"></div>
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
+                    letter-spacing:.9px;font-weight:600;">${label}</div>
+        <div style="font-size:21px;font-weight:700;color:${color};
+                    font-family:var(--font-mono);margin-top:6px;line-height:1.1;
+                    letter-spacing:-.5px;">${value}</div>
+        ${sub ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;
+                             padding-top:5px;border-top:1px solid var(--border);">${sub}</div>` : ''}
     </div>`;
 }
 
