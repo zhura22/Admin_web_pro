@@ -183,10 +183,10 @@ function injectOrderStyles() {
             height: 8px;
             overflow: hidden;
             border: 1px solid var(--border);
+            display: flex;
         }
-        .order-progress-fill {
+        .order-progress-seg {
             height: 100%;
-            border-radius: 6px;
             transition: width .4s ease;
         }
         .order-progress-label {
@@ -194,6 +194,9 @@ function injectOrderStyles() {
             color: var(--muted);
             text-align: right;
             margin-top: 2px;
+            display: flex;
+            justify-content: space-between;
+            gap: 4px;
         }
 
         /* ── Table ── */
@@ -258,11 +261,22 @@ function injectOrderStyles() {
         .detail-progress {
             background: var(--border);
             border-radius: 8px; height: 12px;
-            overflow: hidden; margin-bottom: 14px;
+            overflow: hidden; margin-bottom: 6px;
+            display: flex;
         }
-        .detail-progress-fill {
-            height: 100%; border-radius: 8px;
+        .detail-progress-seg {
+            height: 100%;
             transition: width .5s ease;
+        }
+        .detail-progress-legend {
+            display: flex; gap: 12px; flex-wrap: wrap;
+            margin-bottom: 12px; font-size: 10px; color: var(--muted);
+        }
+        .detail-progress-legend span {
+            display: flex; align-items: center; gap: 4px;
+        }
+        .legend-dot {
+            width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0;
         }
         .detail-shipments-title {
             font-size: 12px; font-weight: 600; color: var(--muted);
@@ -462,11 +476,23 @@ window.renderOrder = function() {
                     <td>${deadlineHtml}</td>
                     <td class="r">${fmtDec(o.volumeOrder, 2)}</td>
                     <td>
-                        <div class="order-progress-wrap">
-                            <div class="order-progress-fill"
-                                style="width:${Math.min(persen,100).toFixed(1)}%; background:${progressColor};"></div>
+                        <div class="order-progress-wrap">${(() => {
+                            const vol   = o.volumeOrder || 1;
+                            const pKirim = Math.min(100, terkirim / vol * 100);
+                            // stok tidak boleh melewati sisa yang belum terkirim
+                            const sisaVol = Math.max(0, vol - terkirim);
+                            const pStok  = Math.min(sisaVol, stokBoard) / vol * 100;
+                            return `
+                                <div class="order-progress-seg" title="Terkirim: ${fmtDec(terkirim,2)} m³"
+                                    style="width:${pKirim.toFixed(2)}%; background:#22c55e;"></div>
+                                <div class="order-progress-seg" title="Stok Board: ${fmtDec(stokBoard,2)} m³"
+                                    style="width:${pStok.toFixed(2)}%; background:#60a5fa;"></div>`;
+                        })()}</div>
+                        <div class="order-progress-label">
+                            <span style="color:#22c55e;">▪ ${fmtDec(terkirim,2)}</span>
+                            ${stokBoard>0 ? `<span style="color:#60a5fa;">▪ ${fmtDec(stokBoard,2)}</span>` : ''}
+                            <span>${persen.toFixed(1)}%</span>
                         </div>
-                        <div class="order-progress-label">${persen.toFixed(1)}%</div>
                     </td>
                     <td class="r"><span class="${sisaClass}">${fmtDec(sisa, 2)}</span></td>
                     <td><span class="os-badge ${statusClass}">${statusIcon} ${status}</span></td>
@@ -569,8 +595,24 @@ function renderDetailPanel({ o, terkirim, sisa, persen, stokBoard, status, statu
             </div>
 
             <div class="detail-progress">
-                <div class="detail-progress-fill"
-                    style="width:${Math.min(persen,100).toFixed(1)}%; background:${progressColor};"></div>
+                ${(() => {
+                    const vol    = o.volumeOrder || 1;
+                    const pKirim = Math.min(100, terkirim / vol * 100);
+                    const sisaVol = Math.max(0, vol - terkirim);
+                    const pStok  = Math.min(sisaVol, stokBoard) / vol * 100;
+                    return `
+                        <div class="detail-progress-seg"
+                            title="Terkirim: ${fmtDec(terkirim,2)} m³"
+                            style="width:${pKirim.toFixed(2)}%; background:#22c55e;"></div>
+                        <div class="detail-progress-seg"
+                            title="Stok Board: ${fmtDec(stokBoard,2)} m³"
+                            style="width:${pStok.toFixed(2)}%; background:#60a5fa;"></div>`;
+                })()}
+            </div>
+            <div class="detail-progress-legend">
+                <span><div class="legend-dot" style="background:#22c55e;"></div>Terkirim: ${fmtDec(terkirim,2)} m³</span>
+                <span><div class="legend-dot" style="background:#60a5fa;"></div>Stok Board: ${fmtDec(stokBoard,2)} m³</span>
+                <span><div class="legend-dot" style="background:var(--border);"></div>Sisa: ${fmtDec(sisa,2)} m³</span>
             </div>
 
             <div class="detail-shipments-title">🚛 Riwayat Pengiriman</div>
