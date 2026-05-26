@@ -3,7 +3,8 @@
 //             trend sparkline, breakdown palet per tebal, form diperluas (shift, no batch kayu),
 //             filter search, laporan card yang lebih informatif
 
-window.paletRows   = [];
+window.paletRows   = [];   // [{jumlah,tebal,lebar,panjang,sap}]
+window.ovenRows    = [];   // [{chamber, volume, tanggal}] — multi-chamber
 let sawmillEditId  = null;
 let sawmillSearch  = '';
 
@@ -389,17 +390,15 @@ function buildSawmillForm() {
         </div>
 
         <!-- ─ OVEN ─ -->
-        <div class="section-head" style="margin-top:14px;">🔥 Oven (opsional)</div>
-        <div class="grid3">
-            <div class="field"><label>Chamber</label>
-                <select id="p-chamber">
-                    <option value="">-- Tidak masuk oven --</option>
-                    ${[1,2,3,4,5,6,7].map(i=>`<option value="${i}">Chamber ${i}</option>`).join('')}
-                </select></div>
-            <div class="field"><label>Volume Oven (m³)</label>
-                <input type="number" step="any" id="p-volumeOven" placeholder="0"></div>
-            <div class="field"><label>Tgl Mulai Oven</label>
-                <input type="date" id="p-tanggalOven"></div>
+        <div class="section-head" style="margin-top:14px;">
+            🔥 Oven (opsional)
+            <span style="font-size:10px;color:var(--muted);font-weight:400;">
+                — bisa lebih dari satu chamber
+            </span>
+        </div>
+        <div id="oven-rows-container"></div>
+        <div style="margin-top:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="window.addOvenRow()">+ Tambah Chamber</button>
         </div>
 
         <div class="form-actions">
@@ -413,48 +412,90 @@ function buildSawmillForm() {
         document.getElementById(id)?.addEventListener('input', updateProduktivitas);
     });
 
-    // ── Auto-fill oven: saat chamber dipilih → isi volume & tanggal otomatis ──
-    document.getElementById('p-chamber')?.addEventListener('change', function () {
-        if (!this.value) return;
-        const volOvenEl = document.getElementById('p-volumeOven');
-        const tglOvenEl = document.getElementById('p-tanggalOven');
-        // Volume oven = total volume palet hari ini (jika belum diisi manual)
-        if (volOvenEl && !volOvenEl.value) {
-            const totalVol = parseFloat(document.getElementById('p-totalvolume')?.value) || 0;
-            if (totalVol > 0) volOvenEl.value = totalVol.toFixed(4);
-        }
-        // Tanggal oven = tanggal laporan hari ini (jika belum diisi manual)
-        if (tglOvenEl && !tglOvenEl.value) {
-            tglOvenEl.value = document.getElementById('p-tanggal')?.value || today();
-        }
-    });
-
-    // ── Saat total volume palet berubah → perbarui volume oven jika chamber sudah dipilih ──
-    const origUpdateTotal = updateTotalDanRendemen;
-    const pTotalVolumeEl = document.getElementById('p-totalvolume');
-    const observer = new MutationObserver(() => {
-        const chamberEl = document.getElementById('p-chamber');
-        const volOvenEl = document.getElementById('p-volumeOven');
-        if (chamberEl?.value && volOvenEl) {
-            const newVol = parseFloat(pTotalVolumeEl?.value) || 0;
-            if (newVol > 0) volOvenEl.value = newVol.toFixed(4);
-        }
-    });
-    if (pTotalVolumeEl) observer.observe(pTotalVolumeEl, { attributes: true, attributeFilter: ['value'] });
-
-    // Patch updateTotalDanRendemen agar volume oven ikut update
-    window._origUpdateTotalDanRendemen = updateTotalDanRendemen;
-    window.updateTotalDanRendemen = function () {
-        window._origUpdateTotalDanRendemen();
-        const chamberEl = document.getElementById('p-chamber');
-        const volOvenEl = document.getElementById('p-volumeOven');
-        const totalVolEl = document.getElementById('p-totalvolume');
-        if (chamberEl?.value && volOvenEl && totalVolEl) {
-            const v = parseFloat(totalVolEl.value) || 0;
-            if (v > 0) volOvenEl.value = v.toFixed(4);
-        }
-    };
 }
+
+// ─────────────────────────────────────────────────
+// OVEN ROWS — multi-chamber per laporan
+// ─────────────────────────────────────────────────
+window.renderOvenRows = function () {
+    const c = document.getElementById('oven-rows-container');
+    if (!c) return;
+    if (!window.ovenRows.length) {
+        c.innerHTML = `<div style="font-size:11px;color:var(--muted);padding:6px 0;">
+            Belum ada chamber. Klik "+ Tambah Chamber" jika hasil palet masuk oven.</div>`;
+        return;
+    }
+    const used = window.ovenRows.map(r => r.chamber).filter(Boolean);
+    let html = `<div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr style="background:var(--bg3);">
+                <th style="padding:7px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;">Chamber</th>
+                <th style="padding:7px 10px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;">Volume (m³)</th>
+                <th style="padding:7px 10px;text-align:center;color:var(--muted);font-size:10px;text-transform:uppercase;">Tgl Mulai</th>
+                <th style="padding:7px 4px;"></th>
+            </tr></thead><tbody>`;
+
+    window.ovenRows.forEach((row, i) => {
+        const opts = [1,2,3,4,5,6,7].map(n => {
+            const disabled = used.includes(String(n)) && row.chamber !== String(n) ? 'disabled' : '';
+            const sel      = row.chamber === String(n) ? 'selected' : '';
+            return `<option value="${n}" ${sel} ${disabled}>Chamber ${n}</option>`;
+        }).join('');
+
+        html += `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:5px 8px;">
+                <select style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);
+                               background:var(--input-bg);color:var(--text);font-size:12px;width:100%;"
+                    onchange="window.onOvenRowInput(${i},'chamber',this.value)">
+                    <option value="">-- Pilih --</option>${opts}
+                </select>
+            </td>
+            <td style="padding:5px 8px;">
+                <input type="number" step="any" min="0" placeholder="0"
+                    style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);
+                           background:var(--input-bg);color:var(--text);font-size:12px;
+                           width:100%;text-align:right;"
+                    value="${row.volume}"
+                    oninput="window.onOvenRowInput(${i},'volume',this.value)">
+            </td>
+            <td style="padding:5px 8px;">
+                <input type="date"
+                    style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);
+                           background:var(--input-bg);color:var(--text);font-size:12px;width:100%;"
+                    value="${row.tanggal}"
+                    onchange="window.onOvenRowInput(${i},'tanggal',this.value)">
+            </td>
+            <td style="padding:5px 4px;text-align:center;">
+                <button style="padding:3px 8px;border-radius:6px;border:1px solid var(--red);
+                               background:transparent;color:var(--red);cursor:pointer;font-size:12px;"
+                    onclick="window.removeOvenRow(${i})">✕</button>
+            </td>
+        </tr>`;
+    });
+
+    const totalOven = window.ovenRows.reduce((s,r) => s+(parseFloat(r.volume)||0), 0);
+    html += `<tr style="background:var(--bg3);">
+        <td style="padding:6px 10px;font-size:10px;color:var(--muted);text-align:right;font-weight:600;">TOTAL</td>
+        <td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--gold);">${totalOven.toFixed(4)} m³</td>
+        <td colspan="2"></td>
+    </tr>`;
+    html += `</tbody></table></div>`;
+    c.innerHTML = html;
+};
+
+window.addOvenRow = function () {
+    const tgl = document.getElementById('p-tanggal')?.value || today();
+    window.ovenRows.push({ chamber: '', volume: '', tanggal: tgl });
+    window.renderOvenRows();
+};
+window.removeOvenRow = function (i) {
+    window.ovenRows.splice(i, 1);
+    window.renderOvenRows();
+};
+window.onOvenRowInput = function (i, field, value) {
+    window.ovenRows[i][field] = value;
+    if (field === 'chamber') window.renderOvenRows(); // re-render untuk update disabled state
+};
 
 function updateProduktivitas() {
     const masuk = parseInt(document.getElementById('p-masuk')?.value) || 0;
@@ -473,6 +514,14 @@ window.openSawmillForm = function(item) {
 
     if (item) {
         window.paletRows = JSON.parse(JSON.stringify(item.hasilPalet || []));
+        // Load ovenRows: dari ovenEntries (multi) atau migrasi data lama (single)
+        if (item.ovenEntries && item.ovenEntries.length) {
+            window.ovenRows = JSON.parse(JSON.stringify(item.ovenEntries));
+        } else if (item.chamber) {
+            window.ovenRows = [{ chamber: String(item.chamber), volume: String(item.volumeOven||''), tanggal: item.tanggalOven||'' }];
+        } else {
+            window.ovenRows = [];
+        }
         document.getElementById('p-tanggal').value       = item.tanggal       || '';
         document.getElementById('p-shift').value         = item.shift         || 'full';
         document.getElementById('p-batchkayu').value     = item.batchKayu     || '';
@@ -480,11 +529,9 @@ window.openSawmillForm = function(item) {
         document.getElementById('p-masuk').value         = item.tenagaMasuk   || '';
         document.getElementById('p-tidakmasuk').value    = item.tenagaTidakMasuk || '';
         document.getElementById('p-catatan').value       = item.catatan       || '';
-        document.getElementById('p-chamber').value       = item.chamber       || '';
-        document.getElementById('p-volumeOven').value    = item.volumeOven    || '';
-        document.getElementById('p-tanggalOven').value   = item.tanggalOven   || '';
         document.getElementById('sawmill-form-title').textContent = '✏️ Edit Laporan Sawmill';
     } else {
+        window.ovenRows = [];
         document.getElementById('p-tanggal').value       = today();
         document.getElementById('p-shift').value         = 'full';
         document.getElementById('p-batchkayu').value     = '';
@@ -492,13 +539,11 @@ window.openSawmillForm = function(item) {
         document.getElementById('p-masuk').value         = '';
         document.getElementById('p-tidakmasuk').value    = '';
         document.getElementById('p-catatan').value       = '';
-        document.getElementById('p-chamber').value       = '';
-        document.getElementById('p-volumeOven').value    = '';
-        document.getElementById('p-tanggalOven').value   = '';
         document.getElementById('sawmill-form-title').textContent = '➕ Input Laporan Sawmill';
     }
 
     renderPaletRows();
+    window.renderOvenRows();
     updateTotalDanRendemen();
     updateProduktivitas();
 
@@ -548,9 +593,13 @@ window.saveSawmill = function() {
     const totalVolumePalet = hasilPalet.reduce((s,p) => s+p.volume, 0);
     const prosesSawmill    = parseFloat(document.getElementById('p-sawmill')?.value) || 0;
     const masuk            = parseInt(document.getElementById('p-masuk')?.value)     || 0;
-    const selectedChamber  = document.getElementById('p-chamber')?.value;
-    const volumeOven       = parseFloat(document.getElementById('p-volumeOven')?.value) || 0;
-    const tanggalOven      = document.getElementById('p-tanggalOven')?.value || '';
+    // ── Baca multi-chamber dari ovenRows ──
+    const validOvenRows = (window.ovenRows || [])
+        .filter(r => r.chamber && parseFloat(r.volume) > 0 && r.tanggal);
+    // Backward-compat: simpan field lama dari entry pertama
+    const selectedChamber = validOvenRows.length > 0 ? validOvenRows[0].chamber : '';
+    const volumeOven      = validOvenRows.reduce((s,r) => s+(parseFloat(r.volume)||0), 0);
+    const tanggalOven     = validOvenRows.length > 0 ? validOvenRows[0].tanggal : '';
 
     const item = {
         id:                sawmillEditId || uid(),
@@ -570,7 +619,12 @@ window.saveSawmill = function() {
         catatan:           document.getElementById('p-catatan')?.value || '',
         chamber:           selectedChamber || '',
         volumeOven:        volumeOven,
-        tanggalOven:       tanggalOven
+        tanggalOven:       tanggalOven,
+        ovenEntries:       validOvenRows.map(r => ({
+            chamber: String(r.chamber),
+            volume:  parseFloat(r.volume) || 0,
+            tanggal: r.tanggal
+        }))
     };
 
     if (sawmillEditId) {
@@ -582,26 +636,34 @@ window.saveSawmill = function() {
         logActivity('Simpan', 'Sawmill', `${tgl} Rendemen:${item.randemanSawmill.toFixed(1)}%`);
     }
 
-    // ── Oven handling — format disesuaikan dengan oven.js ──
-    if (selectedChamber && volumeOven > 0 && tanggalOven) {
-        const ovenChamber = parseInt(selectedChamber);
+    // ── Oven handling — loop semua validOvenRows (multi-chamber) ──
+    if (!window.ovenList) window.ovenList = [];
 
-        // Helper: hitung tglTarget (+7 hari standar pengeringan)
-        const _addHari = (tgl, hari) => {
-            const d = new Date(tgl);
-            d.setDate(d.getDate() + hari);
-            return d.toISOString().split('T')[0];
-        };
-        const DURASI_OVEN = (typeof DURASI_NORMAL_HARI !== 'undefined') ? DURASI_NORMAL_HARI : 7;
-        const tglTarget = _addHari(tanggalOven, DURASI_OVEN);
+    const _addHari = (d, hari) => {
+        const dt = new Date(d); dt.setDate(dt.getDate() + hari);
+        return dt.toISOString().split('T')[0];
+    };
+    const DURASI_OVEN = (typeof DURASI_NORMAL_HARI !== 'undefined') ? DURASI_NORMAL_HARI : 7;
 
-        // Buat entry ovenList dengan format yang sesuai oven.js
-        const buatEntryOven = (existingId) => ({
+    // Mode edit: hapus dulu semua oven entry lama milik laporan ini
+    if (sawmillEditId) {
+        window.ovenList = window.ovenList.filter(o =>
+            !(o.sawmillId === sawmillEditId && o.status === 'isi')
+        );
+    }
+
+    for (const entry of validOvenRows) {
+        const ovenChamber = parseInt(entry.chamber);
+        const openNoEntry = String(ovenChamber);
+        const tglTarget   = _addHari(entry.tanggal, DURASI_OVEN);
+
+        const buatEntry = (existingId) => ({
             id:         existingId || uid(),
             chamber:    ovenChamber,
-            openNo:     item.openNo,
-            volume:     volumeOven,
-            tglMulai:   tanggalOven,
+            openNo:     openNoEntry,
+            sawmillId:  item.id,
+            volume:     parseFloat(entry.volume) || 0,
+            tglMulai:   entry.tanggal,
             tglTarget:  tglTarget,
             tglSelesai: '',
             suhu:       null,
@@ -609,41 +671,13 @@ window.saveSawmill = function() {
             status:     'isi'
         });
 
-        if (!window.ovenList) window.ovenList = [];
-
-        if (sawmillEditId) {
-            // Mode edit: cari entri oven yang sudah ada berdasarkan openNo
-            const existIdx = window.ovenList.findIndex(o => o.openNo === item.openNo && o.status === 'isi');
-            if (existIdx !== -1) {
-                // Update entry yang ada
-                const old = window.ovenList[existIdx];
-                window.ovenList[existIdx] = { ...buatEntryOven(old.id), suhu: old.suhu, catatan: old.catatan };
-            } else {
-                // Tambah baru (kemungkinan openNo berubah)
-                const chamberIdx = window.ovenList.findIndex(o => o.chamber === ovenChamber && o.status === 'isi');
-                if (chamberIdx !== -1) window.ovenList[chamberIdx] = buatEntryOven(window.ovenList[chamberIdx].id);
-                else window.ovenList.push(buatEntryOven());
-            }
-        } else {
-            // Mode tambah baru
-            const existActive = window.ovenList.find(o => o.chamber === ovenChamber && o.status === 'isi');
-            if (existActive) {
-                if (!confirmDialog(`Chamber ${ovenChamber} masih aktif (Open ${existActive.openNo || '?'}). Ganti data oven chamber ini?`)) {
-                    // User batalkan — skip oven
-                    persistAll();
-                    window.closeSawmillForm();
-                    window.renderSawmill();
-                    if (typeof window.renderOven === 'function') window.renderOven();
-                    if (typeof window.renderBatch === 'function') window.renderBatch();
-                    toast('✅ Laporan sawmill disimpan! (Oven tidak diubah)');
-                    return;
-                }
-                // Tandai chamber lama sebagai selesai
-                existActive.status    = 'selesai';
-                existActive.tglSelesai = today();
-            }
-            window.ovenList.push(buatEntryOven());
+        const existActive = window.ovenList.find(o => o.chamber === ovenChamber && o.status === 'isi');
+        if (existActive) {
+            if (!confirmDialog(`Chamber ${ovenChamber} masih aktif. Ganti dengan data baru?`)) continue;
+            existActive.status     = 'selesai';
+            existActive.tglSelesai = today();
         }
+        window.ovenList.push(buatEntry());
     }
 
     persistAll();
@@ -932,10 +966,15 @@ window.renderSawmill = function() {
                         <span>Produktivitas</span>
                         <strong>${fmtDec(prod,3)} m³/org</strong>
                     </div>` : ''}
-                    ${lap.chamber ? `<div class="sw-stat">
-                        <span>Oven</span>
-                        <strong>Chamber ${lap.chamber} · ${fmtDec(lap.volumeOven,2)} m³</strong>
-                    </div>` : ''}
+                    ${(lap.ovenEntries && lap.ovenEntries.length)
+                        ? `<div class="sw-stat"><span>🔥 Oven</span>
+                            <strong>${lap.ovenEntries.map(e=>`Ch.${e.chamber}: ${fmtDec(e.volume,2)}m³`).join(' · ')}</strong>
+                           </div>`
+                        : lap.chamber
+                        ? `<div class="sw-stat"><span>🔥 Oven</span>
+                            <strong>Chamber ${lap.chamber} · ${fmtDec(lap.volumeOven,2)} m³</strong>
+                           </div>`
+                        : ''}
                 </div>
 
                 <!-- Rendemen gauge -->
