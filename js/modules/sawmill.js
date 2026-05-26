@@ -559,7 +559,7 @@ window.saveSawmill = function() {
         batchKayu:         document.getElementById('p-batchkayu')?.value?.trim() || '',
         prosesSawmill:     prosesSawmill,
         randemanSawmill:   prosesSawmill > 0 ? (totalVolumePalet/prosesSawmill)*100 : 0,
-        openNo:            `SW-${sawmillEditId || Date.now()}`,
+        openNo:            selectedChamber ? String(parseInt(selectedChamber)) : `SW-${sawmillEditId || Date.now()}`,
         hasilPalet:        hasilPalet,
         totalPalet:        hasilPalet.reduce((s,p) => s+(p.jumlah||0), 0),
         totalVolumePalet:  totalVolumePalet,
@@ -811,6 +811,21 @@ window.renderSawmill = function() {
                 placeholder="🔍 Cari catatan, batch, atau tanggal..."
                 value="${sawmillSearch}"
                 oninput="onSawmillSearch(this.value)">
+            <button onclick="window.exportSawmillExcel()"
+                style="background:var(--green);color:#fff;border:none;
+                       display:flex;align-items:center;gap:6px;padding:0 14px;height:34px;
+                       font-weight:600;font-size:13px;border-radius:8px;cursor:pointer;
+                       white-space:nowrap;transition:opacity .15s;"
+                onmouseover="this.style.opacity='.82'"
+                onmouseout="this.style.opacity='1'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export Excel
+            </button>
         </div>
     `;
 
@@ -1181,3 +1196,540 @@ setTimeout(() => {
     initSawmillSummary();
     window.renderSawmill();
 }, 500);
+
+// ═══════════════════════════════════════════════════════════════════
+// EXPORT EXCEL — Sawmill (3 sheet: Data, Ringkasan, Tren)
+// ═══════════════════════════════════════════════════════════════════
+
+window.exportSawmillExcel = async function () {
+    // ── Load ExcelJS ──────────────────────────────────────────────
+    if (typeof ExcelJS === 'undefined') {
+        await new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+            s.onload = res; s.onerror = rej;
+            document.head.appendChild(s);
+        });
+    }
+
+    const selMonth = getCurrentFilter();
+    const allList  = window.sawmillList || [];
+    const filtered = allList.filter(r => r.tanggal && r.tanggal.startsWith(selMonth));
+    const sorted   = [...filtered].sort((a,b) => (a.tanggal||'').localeCompare(b.tanggal||''));
+
+    if (!allList.length) { toast('⚠️ Belum ada data sawmill'); return; }
+    toast('⏳ Menyiapkan Excel...');
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator  = 'Admin Web KMSU';
+    wb.created  = new Date();
+    wb.modified = new Date();
+
+    // ── Warna tema (dark) ─────────────────────────────────────────
+    const C = {
+        gold:      'FFD4A017', textGold:  'FFD4A017',
+        green:     'FF22C55E', red:       'FFF87171',
+        orange:    'FFF97316', blue:      'FF60A5FA',
+        purple:    'FFA78BFA',
+        bgHeader:  'FF1A1814', bgAlt:     'FF1F1C18',
+        bgTotal:   'FF2A2416', border:    'FF3A3020',
+        textMain:  'FFE5DDD0', textMuted: 'FF8A8578',
+        rendGood:  'FF22C55E', rendWarn:  'FFF97316', rendBad:  'FFF87171',
+    };
+
+    // ── Format angka ──────────────────────────────────────────────
+    const FMT_INT  = '#,##0';
+    const FMT_DEC2 = '#,##0.00';
+    const FMT_DEC4 = '#,##0.0000';
+    const FMT_PCT  = '0.00"%"';
+
+    // ── Helper styles ─────────────────────────────────────────────
+    const darkFill  = bg  => ({ type:'pattern', pattern:'solid', fgColor:{argb:bg} });
+    const thinBorder= col => {
+        const s = { style:'thin', color:{argb:col} };
+        return { top:s, bottom:s, left:s, right:s };
+    };
+    const centerAlign = () => ({ vertical:'middle', horizontal:'center', wrapText:false });
+    const leftAlign   = () => ({ vertical:'middle', horizontal:'left'   });
+    const rightAlign  = () => ({ vertical:'middle', horizontal:'right'  });
+
+    function applyHdrStyle(cell, align='center') {
+        cell.font      = { name:'Arial', size:10, bold:true, color:{argb:C.textGold} };
+        cell.fill      = darkFill(C.bgHeader);
+        cell.border    = thinBorder(C.border);
+        cell.alignment = align==='right' ? rightAlign() : align==='left' ? leftAlign() : centerAlign();
+    }
+    function applyDataStyle(cell, align='left', alt=false) {
+        cell.font      = { name:'Arial', size:10, color:{argb:C.textMain} };
+        cell.fill      = darkFill(alt ? C.bgAlt : C.bgHeader);
+        cell.border    = thinBorder(C.border);
+        cell.alignment = align==='right' ? rightAlign() : align==='left' ? leftAlign() : centerAlign();
+    }
+    function applyTotalStyle(cell, align='right') {
+        cell.font      = { name:'Arial', size:10, bold:true, color:{argb:C.textGold} };
+        cell.fill      = darkFill(C.bgTotal);
+        cell.border    = thinBorder(C.gold);
+        cell.alignment = align==='right' ? rightAlign() : leftAlign();
+    }
+    function rendColor(rend) {
+        return rend >= RENDEMEN_TARGET ? C.rendGood : rend >= RENDEMEN_WARNING ? C.rendWarn : C.rendBad;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // SHEET 1 — DATA LAPORAN HARIAN
+    // ══════════════════════════════════════════════════════════════
+    const ws1 = wb.addWorksheet('Data Laporan', {
+        properties:{ tabColor:{argb:C.gold} },
+        views:[{ state:'frozen', xSplit:0, ySplit:4 }],
+    });
+
+    ws1.columns = [
+        { key:'no',       width:5  },
+        { key:'tanggal',  width:14 },
+        { key:'shift',    width:10 },
+        { key:'batch',    width:16 },
+        { key:'proses',   width:14 },
+        { key:'paletVol', width:14 },
+        { key:'rendemen', width:12 },
+        { key:'sap',      width:12 },
+        { key:'palet',    width:10 },
+        { key:'tkMasuk',  width:10 },
+        { key:'tkTidak',  width:10 },
+        { key:'prodTK',   width:16 },
+        { key:'catatan',  width:30 },
+    ];
+
+    let r1 = 1;
+    // Judul
+    ws1.mergeCells(`A${r1}:M${r1}`);
+    const t1 = ws1.getCell(`A${r1}`);
+    t1.value     = 'LAPORAN SAWMILL — UD. KARYA MUDA SURYA UTAMA';
+    t1.font      = { name:'Arial', size:14, bold:true, color:{argb:C.gold} };
+    t1.fill      = darkFill(C.bgHeader);
+    t1.alignment = centerAlign();
+    ws1.getRow(r1).height = 28; r1++;
+
+    ws1.mergeCells(`A${r1}:M${r1}`);
+    const t1b = ws1.getCell(`A${r1}`);
+    t1b.value     = `Periode: ${selMonth}  |  Export: ${new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}  |  Total: ${sorted.length} laporan`;
+    t1b.font      = { name:'Arial', size:9, italic:true, color:{argb:C.textMuted} };
+    t1b.fill      = darkFill(C.bgHeader);
+    t1b.alignment = centerAlign();
+    ws1.getRow(r1).height = 16; r1++;
+
+    // Baris kosong
+    ws1.getRow(r1).height = 6;
+    ['A','B','C','D','E','F','G','H','I','J','K','L','M'].forEach(c => {
+        const cell = ws1.getCell(`${c}${r1}`);
+        cell.fill = darkFill(C.bgHeader);
+    });
+    r1++;
+
+    // Header
+    const hdrs1 = [
+        { label:'No',              align:'center' },
+        { label:'Tanggal',         align:'center' },
+        { label:'Shift',           align:'center' },
+        { label:'Batch Kayu',      align:'left'   },
+        { label:'Proses (m³)',     align:'right'  },
+        { label:'Vol Palet (m³)',  align:'right'  },
+        { label:'Rendemen (%)',    align:'right'  },
+        { label:'Total SAP (lbr)',align:'right'   },
+        { label:'Jml Palet',       align:'right'  },
+        { label:'TK Masuk',        align:'right'  },
+        { label:'TK Tdk Masuk',   align:'right'   },
+        { label:'Prod. (m³/org)', align:'right'   },
+        { label:'Catatan',         align:'left'   },
+    ];
+    const hdrRow1 = ws1.getRow(r1);
+    hdrRow1.height = 20;
+    hdrs1.forEach((h,i) => { const cell = hdrRow1.getCell(i+1); cell.value = h.label; applyHdrStyle(cell, h.align); });
+    ws1.autoFilter = { from:`A${r1}`, to:`M${r1}` };
+    r1++;
+
+    // Baris data
+    let tot_proses=0, tot_paletVol=0, tot_sap=0, tot_palet=0, tot_tk=0;
+    sorted.forEach((r, idx) => {
+        const vol   = r.totalVolumePalet || 0;
+        const rend  = r.randemanSawmill  || 0;
+        const prod  = r.produktivitas || ((r.tenagaMasuk||0)>0 ? vol/(r.tenagaMasuk) : 0);
+        const alt   = idx % 2 === 1;
+        const shiftLbl = { pagi:'Pagi', siang:'Siang', full:'Full Day' }[r.shift||'full'] || r.shift;
+        const row   = ws1.getRow(r1);
+        row.height  = 17;
+
+        const vals = [
+            { v: idx+1,              align:'center', fmt:FMT_INT  },
+            { v: r.tanggal||'',      align:'center'               },
+            { v: shiftLbl,           align:'center'               },
+            { v: r.batchKayu||'—',  align:'left'                  },
+            { v: r.prosesSawmill||0, align:'right',  fmt:FMT_DEC4 },
+            { v: vol,                align:'right',  fmt:FMT_DEC4 },
+            { v: rend,               align:'right',  fmt:FMT_PCT, color:rendColor(rend) },
+            { v: r.totalSap||0,      align:'right',  fmt:FMT_INT  },
+            { v: r.totalPalet||0,    align:'right',  fmt:FMT_INT  },
+            { v: r.tenagaMasuk||0,   align:'right',  fmt:FMT_INT  },
+            { v: r.tenagaTidakMasuk||0, align:'right', fmt:FMT_INT },
+            { v: prod,               align:'right',  fmt:FMT_DEC4 },
+            { v: r.catatan||'',      align:'left'                 },
+        ];
+
+        vals.forEach((v,ci) => {
+            const cell = row.getCell(ci+1);
+            cell.value = v.v;
+            applyDataStyle(cell, v.align, alt);
+            if (v.color) cell.font = { name:'Arial', size:10, bold:true, color:{argb:v.color} };
+            if (v.fmt)   cell.numFmt = v.fmt;
+        });
+
+        tot_proses   += r.prosesSawmill||0;
+        tot_paletVol += vol;
+        tot_sap      += r.totalSap||0;
+        tot_palet    += r.totalPalet||0;
+        tot_tk       += r.tenagaMasuk||0;
+        r1++;
+    });
+
+    // Baris total
+    const totRow1 = ws1.getRow(r1);
+    totRow1.height = 20;
+    const avgRend1 = tot_proses > 0 ? (tot_paletVol/tot_proses)*100 : 0;
+    const prodTot  = tot_tk > 0 ? tot_paletVol/tot_tk : 0;
+    [
+        { v:'TOTAL', a:'left'   },
+        { v:'',      a:'center' },
+        { v:'',      a:'center' },
+        { v:'',      a:'left'   },
+        { v:tot_proses,   a:'right', fmt:FMT_DEC4 },
+        { v:tot_paletVol, a:'right', fmt:FMT_DEC4 },
+        { v:avgRend1,     a:'right', fmt:FMT_PCT, color:rendColor(avgRend1) },
+        { v:tot_sap,      a:'right', fmt:FMT_INT  },
+        { v:tot_palet,    a:'right', fmt:FMT_INT  },
+        { v:tot_tk,       a:'right', fmt:FMT_INT  },
+        { v:'',           a:'right' },
+        { v:prodTot,      a:'right', fmt:FMT_DEC4 },
+        { v:'',           a:'left'  },
+    ].forEach((v,ci) => {
+        const cell = totRow1.getCell(ci+1);
+        cell.value = v.v;
+        applyTotalStyle(cell, v.a);
+        if (v.color) cell.font = { name:'Arial', size:10, bold:true, color:{argb:v.color} };
+        if (v.fmt)   cell.numFmt = v.fmt;
+    });
+
+    // ── Sub-sheet palet per laporan ──────────────────────────────
+    // Sisipkan baris palet detail per laporan di bawah baris data
+    // (dilakukan via sheet kedua agar tidak memperumit sheet 1)
+
+    // ══════════════════════════════════════════════════════════════
+    // SHEET 2 — RINGKASAN: KPI + Breakdown Ketebalan + Per Laporan
+    // ══════════════════════════════════════════════════════════════
+    const ws2 = wb.addWorksheet('Ringkasan', {
+        properties:{ tabColor:{argb:C.green} },
+    });
+
+    ws2.columns = [
+        { width:22 }, { width:16 }, { width:14 },
+        { width:14 }, { width:14 }, { width:14 }, { width:14 },
+    ];
+
+    let r2 = 1;
+    // Judul
+    ws2.mergeCells(`A${r2}:G${r2}`);
+    const t2 = ws2.getCell(`A${r2}`);
+    t2.value     = `RINGKASAN SAWMILL — ${selMonth}`;
+    t2.font      = { name:'Arial', size:13, bold:true, color:{argb:C.gold} };
+    t2.fill      = darkFill(C.bgHeader);
+    t2.alignment = centerAlign();
+    ws2.getRow(r2).height = 26; r2++;
+
+    ws2.mergeCells(`A${r2}:G${r2}`);
+    ws2.getCell(`A${r2}`).value     = `UD. Karya Muda Surya Utama  |  ${new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}`;
+    ws2.getCell(`A${r2}`).font      = { name:'Arial', size:9, italic:true, color:{argb:C.textMuted} };
+    ws2.getCell(`A${r2}`).fill      = darkFill(C.bgHeader);
+    ws2.getCell(`A${r2}`).alignment = centerAlign();
+    ws2.getRow(r2).height = 17; r2 += 2;
+
+    // ── KPI Summary ──
+    ws2.mergeCells(`A${r2}:G${r2}`);
+    ws2.getCell(`A${r2}`).value     = '▸ KPI UTAMA BULAN INI';
+    ws2.getCell(`A${r2}`).font      = { name:'Arial', size:10, bold:true, color:{argb:C.textGold} };
+    ws2.getCell(`A${r2}`).fill      = darkFill(C.bgTotal);
+    ws2.getCell(`A${r2}`).alignment = leftAlign();
+    ws2.getRow(r2).height = 18; r2++;
+
+    const allPalet2 = sorted.flatMap(r => r.hasilPalet||[]);
+    const totProses2 = sorted.reduce((s,r)=>s+(r.prosesSawmill||0),0);
+    const totPaletV2 = sorted.reduce((s,r)=>s+(r.totalVolumePalet||0),0);
+    const totSAP2    = sorted.reduce((s,r)=>s+(r.totalSap||0),0);
+    const totPalet2  = sorted.reduce((s,r)=>s+(r.totalPalet||0),0);
+    const totTK2     = sorted.reduce((s,r)=>s+(r.tenagaMasuk||0),0);
+    const avgRend2   = totProses2 > 0 ? (totPaletV2/totProses2)*100 : 0;
+    const prodTK2    = totTK2 > 0 ? totPaletV2/totTK2 : 0;
+
+    const kpis = [
+        ['Vol Proses (m³)',    totProses2, FMT_DEC4, C.gold    ],
+        ['Vol Palet (m³)',     totPaletV2, FMT_DEC4, C.blue    ],
+        ['Avg Rendemen',       avgRend2,   FMT_PCT,  rendColor(avgRend2)],
+        ['Total SAP (lbr)',    totSAP2,    FMT_INT,  C.green   ],
+        ['Total Palet (unit)', totPalet2,  FMT_INT,  C.textMain],
+        ['TK Masuk (tot)',     totTK2,     FMT_INT,  C.textMain],
+        ['Prod TK (m³/org)',   prodTK2,    FMT_DEC4, C.orange  ],
+        ['Hari Laporan',       sorted.length, FMT_INT, C.textMuted],
+    ];
+    kpis.forEach(([lbl, val, fmt, col]) => {
+        const row = ws2.getRow(r2);
+        row.height = 18;
+        const cA = row.getCell(1), cB = row.getCell(2);
+        ws2.mergeCells(`A${r2}:A${r2}`);
+        ws2.mergeCells(`B${r2}:C${r2}`);
+        cA.value     = lbl;
+        cA.font      = { name:'Arial', size:10, color:{argb:C.textMuted} };
+        cA.fill      = darkFill(C.bgHeader);
+        cA.border    = thinBorder(C.border);
+        cA.alignment = leftAlign();
+        cB.value     = val;
+        cB.font      = { name:'Arial', size:10, bold:true, color:{argb:col} };
+        cB.fill      = darkFill(C.bgHeader);
+        cB.border    = thinBorder(C.border);
+        cB.numFmt    = fmt;
+        cB.alignment = rightAlign();
+        r2++;
+    });
+    r2++;
+
+    // ── Rendemen status ──
+    ws2.mergeCells(`A${r2}:G${r2}`);
+    const rendMsg = avgRend2 >= RENDEMEN_TARGET
+        ? `✅ Rendemen ${avgRend2.toFixed(2)}% — Memenuhi target (${RENDEMEN_TARGET}%)`
+        : avgRend2 >= RENDEMEN_WARNING
+        ? `⚠️ Rendemen ${avgRend2.toFixed(2)}% — Di bawah target (${RENDEMEN_TARGET}%), masih di atas batas minimum (${RENDEMEN_WARNING}%)`
+        : `🔴 Rendemen ${avgRend2.toFixed(2)}% — Di bawah batas minimum (${RENDEMEN_WARNING}%)! Perlu evaluasi.`;
+    ws2.getCell(`A${r2}`).value     = rendMsg;
+    ws2.getCell(`A${r2}`).font      = { name:'Arial', size:10, italic:true, color:{argb:rendColor(avgRend2)} };
+    ws2.getCell(`A${r2}`).fill      = darkFill(C.bgTotal);
+    ws2.getCell(`A${r2}`).alignment = leftAlign();
+    ws2.getRow(r2).height = 18; r2 += 2;
+
+    // ── Breakdown per ketebalan ──
+    ws2.mergeCells(`A${r2}:G${r2}`);
+    ws2.getCell(`A${r2}`).value     = '▸ BREAKDOWN PER KETEBALAN PALET';
+    ws2.getCell(`A${r2}`).font      = { name:'Arial', size:10, bold:true, color:{argb:C.textGold} };
+    ws2.getCell(`A${r2}`).fill      = darkFill(C.bgTotal);
+    ws2.getCell(`A${r2}`).alignment = leftAlign();
+    ws2.getRow(r2).height = 18; r2++;
+
+    const tebalHdrs = ['Tebal (mm)','Vol Palet (m³)','% dari Total','SAP (lbr)','Jml Palet','Dimensi Unik','Avg Vol/SAP'];
+    const tebalHdrRow = ws2.getRow(r2);
+    tebalHdrRow.height = 19;
+    tebalHdrs.forEach((h,i) => { const cell = tebalHdrRow.getCell(i+1); cell.value = h; applyHdrStyle(cell, i===0?'left':'right'); });
+    r2++;
+
+    const tebalMap = new Map();
+    allPalet2.forEach(p => {
+        if (!tebalMap.has(p.tebal)) tebalMap.set(p.tebal, { vol:0, sap:0, jml:0, cnt:0 });
+        const e = tebalMap.get(p.tebal);
+        e.vol += p.volume; e.sap += p.sap; e.jml += (p.jumlah||0); e.cnt++;
+    });
+    const sortedTebal2 = [...tebalMap.keys()].sort((a,b)=>a-b);
+
+    sortedTebal2.forEach((tebal, idx) => {
+        const d   = tebalMap.get(tebal);
+        const pct = totPaletV2 > 0 ? d.vol/totPaletV2 : 0;
+        const avgVpS = d.sap > 0 ? d.vol/d.sap : 0;
+        const alt = idx % 2 === 1;
+        const row = ws2.getRow(r2);
+        row.height = 17;
+        [
+            { v:tebal,  a:'left',   fmt:FMT_INT,  col:C.gold  },
+            { v:d.vol,  a:'right',  fmt:FMT_DEC4              },
+            { v:pct,    a:'right',  fmt:'0.0%'                 },
+            { v:d.sap,  a:'right',  fmt:FMT_INT                },
+            { v:d.jml,  a:'right',  fmt:FMT_INT                },
+            { v:d.cnt,  a:'right',  fmt:FMT_INT                },
+            { v:avgVpS, a:'right',  fmt:FMT_DEC4               },
+        ].forEach((v,ci) => {
+            const cell = row.getCell(ci+1);
+            cell.value = v.v;
+            applyDataStyle(cell, v.a, alt);
+            if (v.col) cell.font = { name:'Arial', size:10, bold:true, color:{argb:v.col} };
+            if (v.fmt) cell.numFmt = v.fmt;
+        });
+        r2++;
+    });
+
+    // Baris total tebal
+    const totTebalRow = ws2.getRow(r2);
+    totTebalRow.height = 19;
+    [
+        { v:'TOTAL', a:'left'  },
+        { v:totPaletV2, a:'right', fmt:FMT_DEC4 },
+        { v:1,          a:'right', fmt:'0.0%'   },
+        { v:totSAP2,    a:'right', fmt:FMT_INT  },
+        { v:totPalet2,  a:'right', fmt:FMT_INT  },
+        { v:allPalet2.length, a:'right', fmt:FMT_INT },
+        { v:'',         a:'right'               },
+    ].forEach((v,ci) => {
+        const cell = totTebalRow.getCell(ci+1);
+        cell.value = v.v;
+        applyTotalStyle(cell, v.a);
+        if (v.fmt) cell.numFmt = v.fmt;
+    });
+    r2 += 2;
+
+    // ── Rendemen per Laporan Harian ──
+    ws2.mergeCells(`A${r2}:G${r2}`);
+    ws2.getCell(`A${r2}`).value     = '▸ RENDEMEN PER LAPORAN HARIAN';
+    ws2.getCell(`A${r2}`).font      = { name:'Arial', size:10, bold:true, color:{argb:C.textGold} };
+    ws2.getCell(`A${r2}`).fill      = darkFill(C.bgTotal);
+    ws2.getCell(`A${r2}`).alignment = leftAlign();
+    ws2.getRow(r2).height = 18; r2++;
+
+    const dailyHdrs = ['Tanggal','Shift','Vol Proses (m³)','Vol Palet (m³)','Rendemen (%)','TK Masuk','Prod (m³/org)'];
+    const dailyHdrRow = ws2.getRow(r2);
+    dailyHdrRow.height = 19;
+    dailyHdrs.forEach((h,i) => { const cell = dailyHdrRow.getCell(i+1); cell.value = h; applyHdrStyle(cell, i<2?'center':'right'); });
+    r2++;
+
+    sorted.forEach((r, idx) => {
+        const rd  = r.randemanSawmill||0;
+        const pd  = r.produktivitas||((r.tenagaMasuk||0)>0?(r.totalVolumePalet||0)/r.tenagaMasuk:0);
+        const sl  = { pagi:'Pagi', siang:'Siang', full:'Full Day' }[r.shift||'full']||r.shift;
+        const alt = idx%2===1;
+        const row = ws2.getRow(r2);
+        row.height = 17;
+        [
+            { v:r.tanggal,                a:'center'               },
+            { v:sl,                       a:'center'               },
+            { v:r.prosesSawmill||0,       a:'right', fmt:FMT_DEC4 },
+            { v:r.totalVolumePalet||0,    a:'right', fmt:FMT_DEC4 },
+            { v:rd,                       a:'right', fmt:FMT_PCT, col:rendColor(rd) },
+            { v:r.tenagaMasuk||0,         a:'right', fmt:FMT_INT  },
+            { v:pd,                       a:'right', fmt:FMT_DEC4 },
+        ].forEach((v,ci) => {
+            const cell = row.getCell(ci+1);
+            cell.value = v.v;
+            applyDataStyle(cell, v.a, alt);
+            if (v.col) cell.font = { name:'Arial', size:10, bold:true, color:{argb:v.col} };
+            if (v.fmt) cell.numFmt = v.fmt;
+        });
+        r2++;
+    });
+
+    // ══════════════════════════════════════════════════════════════
+    // SHEET 3 — TREN 12 BULAN
+    // ══════════════════════════════════════════════════════════════
+    const ws3 = wb.addWorksheet('Tren Bulanan', {
+        properties:{ tabColor:{argb:C.blue} },
+    });
+    ws3.columns = [
+        { width:14 }, { width:10 }, { width:16 }, { width:16 },
+        { width:14 }, { width:14 }, { width:18 }, { width:16 },
+    ];
+
+    let r3 = 1;
+    ws3.mergeCells(`A${r3}:H${r3}`);
+    const t3 = ws3.getCell(`A${r3}`);
+    t3.value     = `TREN SAWMILL — 12 BULAN TERAKHIR`;
+    t3.font      = { name:'Arial', size:13, bold:true, color:{argb:C.gold} };
+    t3.fill      = darkFill(C.bgHeader);
+    t3.alignment = centerAlign();
+    ws3.getRow(r3).height = 26; r3++;
+
+    ws3.mergeCells(`A${r3}:H${r3}`);
+    ws3.getCell(`A${r3}`).value     = `UD. Karya Muda Surya Utama  |  ${new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}`;
+    ws3.getCell(`A${r3}`).font      = { name:'Arial', size:9, italic:true, color:{argb:C.textMuted} };
+    ws3.getCell(`A${r3}`).fill      = darkFill(C.bgHeader);
+    ws3.getCell(`A${r3}`).alignment = centerAlign();
+    ws3.getRow(r3).height = 17; r3 += 2;
+
+    const trendHdrs = [
+        { label:'Bulan',            align:'center' },
+        { label:'Laporan',          align:'right'  },
+        { label:'Vol Proses (m³)', align:'right'   },
+        { label:'Vol Palet (m³)',  align:'right'   },
+        { label:'Rendemen (%)',     align:'right'  },
+        { label:'Total SAP (lbr)', align:'right'   },
+        { label:'Prod TK (m³/org)',align:'right'   },
+        { label:'vs Bln Lalu',      align:'center' },
+    ];
+    const tHdrRow = ws3.getRow(r3);
+    tHdrRow.height = 20;
+    trendHdrs.forEach((h,i) => { const cell = tHdrRow.getCell(i+1); cell.value = h.label; applyHdrStyle(cell, h.align); });
+    r3++;
+
+    const now = new Date();
+    const trendMonths = [];
+    for (let i=11; i>=0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+        trendMonths.push(d.toISOString().slice(0,7));
+    }
+
+    let prevVol = 0;
+    trendMonths.forEach((m, idx) => {
+        const md   = allList.filter(r => r.tanggal && r.tanggal.startsWith(m));
+        const vP   = md.reduce((s,r)=>s+(r.prosesSawmill||0),0);
+        const vPal = md.reduce((s,r)=>s+(r.totalVolumePalet||0),0);
+        const sap  = md.reduce((s,r)=>s+(r.totalSap||0),0);
+        const tk   = md.reduce((s,r)=>s+(r.tenagaMasuk||0),0);
+        const rend = vP > 0 ? vPal/vP*100 : 0;
+        const prod = tk > 0 ? vPal/tk : 0;
+        const diff = prevVol > 0 ? (vP-prevVol)/prevVol : null;
+
+        const isCur = m === selMonth;
+        const alt   = idx%2===1;
+        const row   = ws3.getRow(r3);
+        row.height  = 18;
+
+        [
+            { v:m,             a:'center'                         },
+            { v:md.length,     a:'right',  fmt:FMT_INT            },
+            { v:vP,            a:'right',  fmt:FMT_DEC4           },
+            { v:vPal,          a:'right',  fmt:FMT_DEC4           },
+            { v:rend,          a:'right',  fmt:FMT_PCT, col:vP>0?rendColor(rend):C.textMuted },
+            { v:sap,           a:'right',  fmt:FMT_INT            },
+            { v:prod,          a:'right',  fmt:FMT_DEC4           },
+            { v:diff!==null?diff:'—', a:'center', fmt:diff!==null?'+0.0%;-0.0%;0.0%':'@',
+              col:diff===null?C.textMuted:diff>=0?C.green:C.red  },
+        ].forEach((v,ci) => {
+            const cell = row.getCell(ci+1);
+            cell.value = v.v;
+            if (isCur) {
+                cell.fill   = darkFill(C.bgTotal);
+                cell.font   = { name:'Arial', size:10, bold:true, color:{argb:v.col||C.textGold} };
+                cell.border = thinBorder(C.gold);
+            } else {
+                applyDataStyle(cell, v.a, alt);
+                if (v.col) cell.font = { name:'Arial', size:10, color:{argb:v.col} };
+            }
+            cell.alignment = v.a==='right' ? rightAlign() : centerAlign();
+            if (v.fmt && v.v !== '—') cell.numFmt = v.fmt;
+        });
+
+        if (vP > 0) prevVol = vP;
+        r3++;
+    });
+
+    // Keterangan highlight
+    r3 += 1;
+    ws3.mergeCells(`A${r3}:H${r3}`);
+    ws3.getCell(`A${r3}`).value     = `★ Baris emas = bulan yang sedang dipilih (${selMonth})`;
+    ws3.getCell(`A${r3}`).font      = { name:'Arial', size:9, italic:true, color:{argb:C.gold} };
+    ws3.getCell(`A${r3}`).fill      = darkFill(C.bgTotal);
+    ws3.getCell(`A${r3}`).alignment = leftAlign();
+
+    // ── Download ──────────────────────────────────────────────────
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob   = new Blob([buffer], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href       = url;
+    a.download   = `Laporan_Sawmill_${selMonth}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast(`✅ Export Excel Sawmill berhasil! (3 sheet)`);
+    if (typeof logActivity === 'function') logActivity('Export','Sawmill',`Excel ${selMonth}`);
+};
