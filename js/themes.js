@@ -124,6 +124,48 @@ const themes = {
         }
     },
 
+    // ── Glass Purple — Neon Futuristic Glassmorphism ──
+    glassPurple: {
+        name: 'Glass Purple',
+        icon: '🔮',
+        variables: {
+            '--gold':         '#a855f7',
+            '--gold-light':   '#c084fc',
+            '--gold-dim':     'rgba(168,85,247,.15)',
+            '--bg':           '#07050f',
+            '--bg2':          'rgba(255,255,255,.038)',
+            '--bg3':          'rgba(255,255,255,.025)',
+            '--border':       'rgba(167,139,250,.16)',
+            '--text':         '#ede9fe',
+            '--muted':        'rgba(196,156,255,.55)',
+            '--green':        '#34d399',
+            '--green-bg':     'rgba(52,211,153,.1)',
+            '--red':          '#f87171',
+            '--red-bg':       'rgba(248,113,113,.1)',
+            '--blue':         '#93c5fd',
+            '--orange':       '#fb923c',
+            '--cyan':         '#5eead4',
+            '--input-bg':     'rgba(255,255,255,.052)',
+            '--input-border': 'rgba(139,92,246,.22)',
+            '--input-color':  '#f3e8ff',
+            '--row-even':     'rgba(255,255,255,.018)',
+            '--td-border':    'rgba(139,92,246,.08)',
+            '--pill-bg':      'rgba(139,92,246,.1)',
+            '--palet-row-bg': 'rgba(255,255,255,.03)',
+            '--flow-step-bg': 'rgba(139,92,246,.08)',
+            '--signin-input-bg':     'rgba(255,255,255,.052)',
+            '--signin-input-border': 'rgba(139,92,246,.22)',
+            '--header-bg':     'rgba(10,6,22,.75)',
+            '--header-border': 'rgba(160,80,255,.22)',
+            '--sidebar-hover-color': '#e9d5ff',
+            '--shadow':        '0 8px 40px rgba(109,40,217,.2)',
+            '--radius':        '14px',
+            '--radius-sm':     '10px',
+            '--glass-blur':    '24px',
+            '--glass-saturate':'160%'
+        }
+    },
+
     // ── Liquid Glass — iOS-inspired frosted glass ──
     liquidGlass: {
         name: 'Liquid Glass',
@@ -191,6 +233,11 @@ const themeBodies = {
     light: { bg: '', image: '', attachment: '' },
     blue: { bg: '', image: '', attachment: '' },
     green: { bg: '', image: '', attachment: '' },
+    glassPurple: {
+        bg: '#07050f',
+        attachment: 'fixed',
+        bodyClass: 'glass-purple'
+    },
     liquidGlass: {
         // Soft colourful mesh — makes frosted panels pop
         bg: `
@@ -220,12 +267,14 @@ function applyTheme(themeId) {
     document.body.style.background = bodyStyle.bg || '';
     document.body.style.backgroundAttachment = bodyStyle.attachment || '';
 
-    // Toggle liquid-glass class (drives CSS animations + overrides)
-    if (themeId === 'liquidGlass') {
-        document.body.classList.add('liquid-glass');
-    } else {
-        document.body.classList.remove('liquid-glass');
-    }
+    // Toggle theme body classes
+    document.body.classList.remove('liquid-glass', 'glass-purple');
+    const bodyConf = themeBodies[themeId] || {};
+    if (bodyConf.bodyClass) document.body.classList.add(bodyConf.bodyClass);
+    if (themeId === 'liquidGlass') document.body.classList.add('liquid-glass');
+
+    // Ribbon canvas — show only for glassPurple
+    manageRibbonCanvas(themeId === 'glassPurple');
 
     // Persist & update toggle button
     localStorage.setItem('app_theme', themeId);
@@ -251,3 +300,89 @@ document.addEventListener('DOMContentLoaded', () => {
     if (themeBtn) themeBtn.addEventListener('click', cycleTheme);
     loadSavedTheme();
 });
+
+/* ── Animated ribbon canvas for Glass Purple theme ── */
+function manageRibbonCanvas(show) {
+    let canvas = document.getElementById('glass-ribbon-canvas');
+    if (!show) {
+        if (canvas) canvas.remove();
+        return;
+    }
+    if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.id = 'glass-ribbon-canvas';
+        document.body.insertBefore(canvas, document.body.firstChild);
+    }
+    startRibbons(canvas);
+}
+
+function startRibbons(canvas) {
+    // Stop any existing animation
+    if (canvas._rafId) cancelAnimationFrame(canvas._rafId);
+
+    const resize = () => {
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const ctx = canvas.getContext('2d');
+    const W = () => canvas.width;
+    const H = () => canvas.height;
+
+    // Define ribbon paths
+    const ribbons = [
+        { x: 0.15, y: 0.1, speed: 0.00018, amp: 0.22, freq: 1.1, phase: 0,    width: 2.5, color: [168,85,247], alpha: 0.35 },
+        { x: 0.80, y: 0.05, speed: 0.00014, amp: 0.18, freq: 0.9, phase: 1.2, width: 1.8, color: [196,156,255], alpha: 0.28 },
+        { x: 0.05, y: 0.6,  speed: 0.00020, amp: 0.25, freq: 1.3, phase: 2.4, width: 2.0, color: [139,92,246],  alpha: 0.30 },
+        { x: 0.55, y: 0.85, speed: 0.00016, amp: 0.15, freq: 0.7, phase: 0.8, width: 1.5, color: [232,121,249], alpha: 0.22 },
+        { x: 0.90, y: 0.45, speed: 0.00012, amp: 0.20, freq: 1.5, phase: 3.6, width: 1.2, color: [167,139,250], alpha: 0.20 },
+    ];
+
+    let t = 0;
+    const POINTS = 180;
+
+    function draw() {
+        if (!document.getElementById('glass-ribbon-canvas')) return;
+        ctx.clearRect(0, 0, W(), H());
+
+        ribbons.forEach(r => {
+            // Build bezier path across screen
+            const pts = [];
+            for (let i = 0; i <= POINTS; i++) {
+                const px = (r.x + i / POINTS * 1.1 - 0.05) * W();
+                const wave1 = Math.sin(i / POINTS * Math.PI * 2 * r.freq + t * r.speed * 1000 + r.phase) * r.amp * H();
+                const wave2 = Math.sin(i / POINTS * Math.PI * 3.7 * r.freq + t * r.speed * 700 + r.phase * 1.3) * r.amp * 0.4 * H();
+                const py = r.y * H() + wave1 + wave2;
+                pts.push({ x: px, y: py });
+            }
+
+            // Draw ribbon with gradient stroke
+            const grad = ctx.createLinearGradient(0, 0, W(), 0);
+            grad.addColorStop(0,   `rgba(${r.color},0)`);
+            grad.addColorStop(0.2, `rgba(${r.color},${r.alpha})`);
+            grad.addColorStop(0.5, `rgba(${r.color},${r.alpha * 1.4})`);
+            grad.addColorStop(0.8, `rgba(${r.color},${r.alpha})`);
+            grad.addColorStop(1,   `rgba(${r.color},0)`);
+
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length - 1; i++) {
+                const mx = (pts[i].x + pts[i+1].x) / 2;
+                const my = (pts[i].y + pts[i+1].y) / 2;
+                ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+            }
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = r.width;
+            ctx.shadowColor = `rgba(${r.color}, 0.6)`;
+            ctx.shadowBlur = 18;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        });
+
+        t = performance.now();
+        canvas._rafId = requestAnimationFrame(draw);
+    }
+    draw();
+}
