@@ -41,7 +41,7 @@ window.renderProduksi = function () {
     const to    = document.getElementById('prod-filter-to')?.value || '';
     const srch  = (document.getElementById('prod-filter-search')?.value || '').toLowerCase();
 
-    let list = sortByDateAsc(window.produksiList);
+    let list = sortByDateDesc(window.produksiList);
     if (from)  list = list.filter(l => l.tanggal >= from);
     if (to)    list = list.filter(l => l.tanggal <= to);
     if (srch)  list = list.filter(l => (l.openNo||'').toLowerCase().includes(srch) || (l.keterangan||'').toLowerCase().includes(srch));

@@ -983,3 +983,250 @@ body.glass-purple .empty { color: rgba(196,156,255,.4) !important; }
 body.glass-purple .sidebar-item.active .icon {
     filter: drop-shadow(0 0 6px rgba(168,85,247,.7));
 }
+
+/* ════════════════════════════════════════════════════
+   NOIR THEME — Cinematic Black & White
+   Ultra-modern monochrome aesthetic
+════════════════════════════════════════════════════ */
+
+/* ── z-index stacking ── */
+body.noir header,
+body.noir .sidebar,
+body.noir .main-content,
+body.noir .modal-overlay,
+body.noir .toast-container { position: relative; z-index: 2; }
+
+/* ── Body base ── */
+body.noir {
+    background: #000000 !important;
+    color: #efefef !important;
+}
+
+/* ── Header — razor-sharp bottom line ── */
+body.noir header {
+    background: rgba(0,0,0,0.96) !important;
+    border-bottom: 1px solid rgba(255,255,255,0.12) !important;
+    backdrop-filter: blur(20px) !important;
+}
+
+/* ── Logo title — pure white, no gold tint ── */
+body.noir .logo-title {
+    color: #ffffff !important;
+    letter-spacing: 4px;
+    text-shadow: 0 0 18px rgba(255,255,255,0.18);
+}
+body.noir .logo-sub { color: #444 !important; }
+
+/* ── Badge ── */
+body.noir .badge {
+    background: rgba(255,255,255,0.06) !important;
+    color: #cccccc !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+/* ── Sidebar ── */
+body.noir .sidebar {
+    background: #050505 !important;
+    border-right: 1px solid rgba(255,255,255,0.07) !important;
+}
+body.noir .sidebar-item.active {
+    background: rgba(255,255,255,0.08) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.18) !important;
+    font-weight: 700;
+}
+body.noir .sidebar-item:hover:not(.active) {
+    background: rgba(255,255,255,0.04) !important;
+    border-color: rgba(255,255,255,0.07) !important;
+    color: #ffffff !important;
+}
+body.noir .sidebar-item.active .icon {
+    filter: drop-shadow(0 0 5px rgba(255,255,255,0.6));
+}
+body.noir .sidebar-divider { border-color: rgba(255,255,255,0.06) !important; }
+body.noir .sidebar-label { color: #333 !important; }
+
+/* ── Panel title ── */
+body.noir .panel-title {
+    color: #ffffff !important;
+    text-shadow: 0 0 24px rgba(255,255,255,0.12);
+}
+body.noir .panel-sub { color: #444 !important; }
+
+/* ── Cards / boxes ── */
+body.noir .card,
+body.noir .section-box,
+body.noir .stat-box,
+body.noir .info-box {
+    background: #0a0a0a !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.9) !important;
+}
+
+/* ── Stat values ── */
+body.noir .stat-val,
+body.noir .stat-value,
+body.noir .kpi-value {
+    color: #ffffff !important;
+    text-shadow: 0 0 14px rgba(255,255,255,0.15);
+}
+
+/* ── Buttons — primary ── */
+body.noir .btn,
+body.noir button.primary,
+body.noir .btn-primary {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 0 0 rgba(255,255,255,0);
+    transition: box-shadow 0.2s ease, transform 0.15s ease !important;
+}
+body.noir .btn:hover,
+body.noir button.primary:hover,
+body.noir .btn-primary:hover {
+    box-shadow: 0 0 22px rgba(255,255,255,0.25) !important;
+    transform: translateY(-1px);
+}
+
+/* ── Buttons — secondary/ghost ── */
+body.noir .btn-secondary,
+body.noir .btn-ghost,
+body.noir button:not(.btn-primary):not(.sidebar-item):not(.subtab-btn) {
+    background: transparent !important;
+    color: #aaa !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+}
+body.noir .btn-secondary:hover,
+body.noir .btn-ghost:hover {
+    background: rgba(255,255,255,0.06) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.28) !important;
+}
+
+/* ── Subtab ── */
+body.noir .subtab-toggle {
+    background: #0a0a0a !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+body.noir .subtab-btn {
+    color: #444 !important;
+}
+body.noir .subtab-btn.active {
+    background: rgba(255,255,255,0.1) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 10px rgba(255,255,255,0.07) !important;
+}
+
+/* ── Tables ── */
+body.noir table thead th {
+    background: #0a0a0a !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid rgba(255,255,255,0.12) !important;
+    letter-spacing: 1px;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    font-size: 10px !important;
+}
+body.noir table tbody tr:hover td {
+    background: rgba(255,255,255,0.04) !important;
+}
+body.noir table tbody td {
+    border-bottom: 1px solid rgba(255,255,255,0.04) !important;
+    color: #cccccc !important;
+}
+body.noir table tbody tr:nth-child(even) td {
+    background: rgba(255,255,255,0.018) !important;
+}
+
+/* ── Inputs ── */
+body.noir input,
+body.noir select,
+body.noir textarea {
+    background: #0d0d0d !important;
+    border-color: rgba(255,255,255,0.11) !important;
+    color: #efefef !important;
+}
+body.noir input:focus,
+body.noir select:focus,
+body.noir textarea:focus {
+    border-color: rgba(255,255,255,0.45) !important;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.07) !important;
+    outline: none !important;
+}
+body.noir input::placeholder,
+body.noir textarea::placeholder { color: #333 !important; }
+
+/* ── Pills / tags ── */
+body.noir .pill,
+body.noir .tag,
+body.noir .badge-pill {
+    background: rgba(255,255,255,0.07) !important;
+    color: #ccc !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+}
+
+/* ── Status colors — desaturated for noir feel ── */
+body.noir .status-ok,
+body.noir .text-green { color: #a8e6a3 !important; }
+body.noir .status-warn,
+body.noir .text-orange { color: #f0d090 !important; }
+body.noir .status-err,
+body.noir .text-red { color: #f0a0a0 !important; }
+
+/* ── Modal ── */
+body.noir .modal-box,
+body.noir .modal-content {
+    background: #0a0a0a !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.95) !important;
+}
+body.noir .modal-overlay { background: rgba(0,0,0,0.85) !important; }
+body.noir .modal-title { color: #ffffff !important; }
+
+/* ── Toast ── */
+body.noir .toast {
+    background: #111 !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    color: #efefef !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.9) !important;
+}
+
+/* ── Scrollbar ── */
+body.noir ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1) !important;
+    border-radius: 2px;
+}
+body.noir ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.22) !important;
+}
+
+/* ── Dividers & borders ── */
+body.noir hr,
+body.noir .divider { border-color: rgba(255,255,255,0.07) !important; }
+
+/* ── Empty state text ── */
+body.noir .empty { color: #2a2a2a !important; }
+
+/* ── Section header accent line ── */
+body.noir .section-head::after,
+body.noir .panel-title::after {
+    background: rgba(255,255,255,0.15) !important;
+}
+
+/* ── Sign-in screen ── */
+body.noir .signin-box {
+    background: #0a0a0a !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.9) !important;
+}
+body.noir .signin-title { color: #ffffff !important; }
+body.noir .signin-btn {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
+}
+body.noir .signin-btn:hover {
+    box-shadow: 0 0 28px rgba(255,255,255,0.2) !important;
+}

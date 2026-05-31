@@ -6,9 +6,10 @@ function initApp() {
     document.getElementById("jual-tanggal").value = today();
     document.getElementById("opname-bulan").value = thisMonth();
     window.populateOrderDropdown(null);
-    const { awal, akhir } = getDateRange();
-    if (document.getElementById("rekap-tgl-awal")) document.getElementById("rekap-tgl-awal").value = awal;
-    if (document.getElementById("rekap-tgl-akhir")) document.getElementById("rekap-tgl-akhir").value = akhir;
-    renderCharts();
-    renderAllTargetCharts();
+    // Inisialisasi bulan rekap (month picker)
+    const rekBln = document.getElementById("rekap-bulan");
+    if (rekBln && !rekBln.value) rekBln.value = thisMonth();
+    // Render chart dashboard (nama fungsi yang benar di dashboard.js)
+    window.renderTrendCharts?.();
+    window.renderTargetCharts?.();
 }

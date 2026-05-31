@@ -773,6 +773,25 @@ function renderPenjualanKPI() {
             </span>`
         ).join('');
 
+    // Breakdown per ketebalan produk bulan ini
+    const perTebalJual = {};
+    listBln.forEach(p => {
+        const order = (window.orderList || []).find(o => o.id === p.orderId);
+        const tebal = order?.ketebalanProduk ? order.ketebalanProduk + ' mm' : 'Tdk diatur';
+        if (!perTebalJual[tebal]) perTebalJual[tebal] = 0;
+        perTebalJual[tebal] += getPenjualanNetto(p);
+    });
+    const tebalBadges = Object.entries(perTebalJual)
+        .sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]))
+        .map(([k, v]) =>
+            `<span style="background:var(--gold-dim);color:var(--gold);
+                          border:1px solid rgba(200,160,80,.22);border-radius:20px;
+                          padding:3px 10px;font-size:10px;font-weight:700;
+                          font-family:var(--font-mono);">
+                ${escapeHtml(k)}: ${fmtDec(v,2)} m³
+            </span>`
+        ).join('');
+
     cont.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
                 gap:12px;margin-bottom:16px;">
@@ -791,6 +810,13 @@ function renderPenjualanKPI() {
                 border-radius:8px;">
         <span style="font-size:10px;color:var(--muted);">🏆 Top Tujuan:</span>
         ${topTujuan}
+    </div>` : ''}
+    ${tebalBadges ? `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;
+                padding:10px 14px;background:var(--bg2);border:1px solid var(--border);
+                border-radius:8px;">
+        <span style="font-size:10px;color:var(--muted);">📐 Per Tebal Produk (bulan ini):</span>
+        ${tebalBadges}
     </div>` : ''}`;
 }
 
@@ -840,6 +866,7 @@ window.renderPenjualanList = function () {
         const hPerM3   = netto > 0 ? (p.harga / netto) : 0;
         const returPct = p.volume > 0 ? (p.retur / p.volume * 100).toFixed(1) : '0';
 
+        const tebalProduk = order?.ketebalanProduk || null;
         return `<tr onmouseover="this.style.background='var(--bg3)'"
                     onmouseout="this.style.background=''">
             <td>${fmtDate(p.tanggal)}</td>
@@ -851,6 +878,15 @@ window.renderPenjualanList = function () {
                 <div style="font-size:10px;color:var(--muted);">
                     ${order ? escapeHtml(order.perusahaan || '') : ''}
                 </div>
+            </td>
+            <td style="text-align:center;">
+                ${tebalProduk
+                    ? `<span style="background:var(--gold-dim);color:var(--gold);
+                                  padding:2px 9px;border-radius:20px;
+                                  font-family:var(--font-mono);font-size:11px;
+                                  font-weight:700;border:1px solid rgba(200,160,80,.2);
+                                  white-space:nowrap;">${tebalProduk} mm</span>`
+                    : '<span style="color:var(--muted);font-size:10px;">—</span>'}
             </td>
             <td style="text-align:right;font-family:var(--font-mono);">${fmt(p.pcs)}</td>
             <td style="text-align:right;">
@@ -910,7 +946,7 @@ window.renderPenjualanList = function () {
     <div class="table-wrap">
         <table style="font-size:11px;">
             <thead><tr>
-                <th>Tanggal</th><th>PO / Pembeli</th><th class="right">Pcs</th>
+                <th>Tanggal</th><th>PO / Pembeli</th><th style="text-align:center;">Tebal</th><th class="right">Pcs</th>
                 <th class="right">Bruto (m³)</th><th class="right">Netto (m³)</th>
                 <th>No. Truk</th><th>Tujuan</th><th class="right">Harga</th><th>Aksi</th>
             </tr></thead>
@@ -1062,8 +1098,20 @@ function _fmtBulan(ym) {
 window.populateOrderDropdown = function (selectedId) {
     const sel = document.getElementById('jual-order');
     if (!sel) return;
+
+    // Filter: tampilkan hanya order yang BELUM selesai
+    // Order dianggap selesai jika total penjualan >= volumeOrder
+    const activeOrders = (window.orderList || []).filter(o => {
+        const terkirim = (window.penjualanList || [])
+            .filter(p => p.orderId === o.id)
+            .reduce((s, p) => s + (parseFloat(p.volume) || 0), 0);
+        const selesai = o.volumeOrder > 0 && terkirim >= o.volumeOrder;
+        // Selalu tampilkan order yang sedang di-edit (selectedId)
+        return !selesai || o.id === selectedId;
+    });
+
     sel.innerHTML = '<option value="">-- Pilih PO --</option>' +
-        (window.orderList || []).map(o =>
+        activeOrders.map(o =>
             `<option value="${o.id}"${o.id === selectedId ? ' selected' : ''}>
                 ${escapeHtml(o.kodePO)} — ${escapeHtml(o.perusahaan)}
              </option>`
@@ -1078,6 +1126,8 @@ window.resetJualForm = function () {
     });
     document.getElementById('jual-harga-per-m3')
         && (document.getElementById('jual-harga-per-m3').textContent = '—');
+    const tebalReset = document.getElementById('jual-tebal-info');
+    if (tebalReset) { tebalReset.textContent = '—'; tebalReset.style.color = 'var(--gold)'; }
     penjualanEditId = null;
     populateOrderDropdown(null);
 };
@@ -1105,8 +1155,21 @@ window.updateJualPreview = function () {
     const el    = document.getElementById('jual-harga-per-m3');
     if (el) el.textContent = hpm3 > 0 ? 'Rp ' + fmtRpRekap(hpm3) + '/m³' : '—';
 
-    // Warna sisa PO
+    // Auto-tampilkan ketebalan produk dari order
     const orderId = document.getElementById('jual-order')?.value;
+    const tebalInfoEl = document.getElementById('jual-tebal-info');
+    if (tebalInfoEl) {
+        const selOrder = (window.orderList || []).find(o => o.id === orderId);
+        if (selOrder?.ketebalanProduk) {
+            tebalInfoEl.textContent = selOrder.ketebalanProduk + ' mm';
+            tebalInfoEl.style.color = 'var(--gold)';
+        } else {
+            tebalInfoEl.textContent = orderId ? 'Tidak diatur' : '—';
+            tebalInfoEl.style.color = 'var(--muted)';
+        }
+    }
+
+    // Warna sisa PO
     if (orderId && vol > 0) {
         const order   = (window.orderList || []).find(o => o.id === orderId);
         if (order) {
@@ -1206,8 +1269,11 @@ window.editPenjualan = function (id) {
     const item = (window.penjualanList || []).find(p => p.id === id);
     if (!item) return;
     fillJualForm(item);
-    // Switch ke subtab input
-    document.querySelector('#tab-sezing .subtab-btn[data-subtab="sezing-input"]')?.click();
+    // FIX: Switch ke tab penjualan, subtab input (bukan tab sezing)
+    window.switchTab?.('penjualan');
+    setTimeout(() => {
+        document.querySelector('#tab-penjualan .subtab-btn[data-subtab="penjualan-input"]')?.click();
+    }, 50);
 };
 
 // ═══════════════════════════════════════════════════════════

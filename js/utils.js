@@ -22,6 +22,9 @@ function confirmDialog(msg) {
 function sortByDateAsc(arr) {
     return [...arr].sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || ''));
 }
+function sortByDateDesc(arr) {
+    return [...arr].sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+}
 
 function getDateRange() {
     let awal = document.getElementById("rekap-tgl-awal")?.value;

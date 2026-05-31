@@ -3,10 +3,17 @@
 // embed nilai hari ini sebagai sub-line di setiap KPI card utama.
 
 // ── Target day helper ──────────────────────────────────────────────
+// Hari kerja = bukan Minggu + bukan Sabtu (jika liburSabtu=true) + tidak ada di daftar hariLibur
 function isTargetDay(dateStr) {
-    const d = new Date(dateStr);
+    const d = new Date(dateStr + 'T00:00:00');
     if (isNaN(d.getTime())) return false;
-    return d.getDate() !== 1 && d.getDay() !== 0;
+    const dow = d.getDay();
+    if (dow === 0) return false;  // Minggu selalu libur
+    const cfg = window.appSettings || {};
+    if (cfg.liburSabtu && dow === 6) return false;  // Sabtu libur jika diset
+    const libur = cfg.hariLibur || [];
+    if (libur.includes(dateStr)) return false;  // Tanggal libur khusus
+    return true;
 }
 function getDailyTargetForDate(ds, dt) { return isTargetDay(ds) ? dt : 0; }
 function getTargetCumulativeUpTo(endDateStr, dailyTarget) {
@@ -25,6 +32,7 @@ window.renderDashboard = function () {
     try {
         renderDashboardKPI();
         renderTargetAchievement();
+        window.renderTargetHariAktif();
         renderTargetCharts();
         renderTrendCharts();
     } catch (e) {
@@ -130,14 +138,6 @@ function renderDashboardKPI() {
 
     // ── Render ──
     container.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-        <div>
-            <div style="font-family:var(--font-mono);font-size:18px;color:var(--gold);font-weight:700;">📊 Overview — ${formatBulan(bulan)}</div>
-            <div style="font-size:11px;color:var(--muted);">${fmtDate(hari)}</div>
-        </div>
-        <button class="btn btn-secondary btn-sm" onclick="window.renderDashboard()">🔄 Refresh</button>
-    </div>
-
     ${alerts.length ? `
     <div style="background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.22);border-radius:10px;padding:12px 16px;margin-bottom:16px;">
         <div style="font-size:11px;font-weight:700;color:#f87171;margin-bottom:6px;">⚠️ Perhatian (${alerts.length})</div>
@@ -293,6 +293,251 @@ function renderTargetAchievement() {
 
 // Stub agar fungsi lama tidak error jika dipanggil dari luar
 window.renderTargetCapaian = function () {};
+
+// ── 2b. TARGET VS REALISASI BERDASARKAN HARI AKTIF MASUK ─────────
+window.renderTargetHariAktif = function () {
+    const cont  = document.getElementById('target-hari-aktif-container');
+    const badge = document.getElementById('hari-aktif-badge');
+    if (!cont) return;
+
+    const cfg   = window.appSettings || {};
+    const bulan = thisMonth();
+
+    // ── Hitung semua hari kerja bulan ini dari tgl 1 s/d hari ini ──
+    // Hari kerja = bukan Minggu + bukan Sabtu (jika liburSabtu) + tidak di daftar libur
+    const hari_ini   = today();
+    const [thn, bln] = bulan.split('-').map(Number);
+    const hariKerja  = [];   // semua hari kerja s/d hari ini
+    const hariLiburSet = new Set(cfg.hariLibur || []);
+
+    let cur = new Date(thn, bln - 1, 1);
+    const batas = new Date(hari_ini + 'T00:00:00');
+    while (cur <= batas) {
+        const tgl = cur.toISOString().split('T')[0];
+        if (isTargetDay(tgl)) hariKerja.push(tgl);
+        cur.setDate(cur.getDate() + 1);
+    }
+
+    const jumlahHariKerja = hariKerja.length;
+
+    // ── Target kumulatif = jumlah hari kerja s/d hari ini × target harian ──
+    const tKayu    = cfg.targetKayuHarian    || 10;
+    const tSawmill = cfg.targetSawmillHarian || 8;
+    const tPlaner  = cfg.targetPlanerHarian  || 3;
+    const tPress   = cfg.targetPressHarian   || 1000;
+    const tSeri    = cfg.targetSeriHarian    || 800;
+    const tSezing  = cfg.targetSezingHarian  || 2;
+
+    const targetKayu    = jumlahHariKerja * tKayu;
+    const targetSawmill = jumlahHariKerja * tSawmill;
+    const targetPlaner  = jumlahHariKerja * tPlaner;
+    const targetPress   = jumlahHariKerja * tPress;
+    const targetSeri    = jumlahHariKerja * tSeri;
+    const targetSezing  = jumlahHariKerja * tSezing;
+
+    // ── Hitung juga total hari kerja sebulan penuh (untuk info) ──
+    let totalHariBulan = 0;
+    let curFull = new Date(thn, bln - 1, 1);
+    const akhirBulan = new Date(thn, bln, 0);
+    while (curFull <= akhirBulan) {
+        if (isTargetDay(curFull.toISOString().split('T')[0])) totalHariBulan++;
+        curFull.setDate(curFull.getDate() + 1);
+    }
+    const sisaHari = totalHariBulan - jumlahHariKerja;
+
+    // ── Realisasi bulan ini ──
+    const kayuBln  = (window.kayuList     || []).filter(k => k.tanggal?.startsWith(bulan));
+    const sawBln   = (window.sawmillList  || []).filter(s => s.tanggal?.startsWith(bulan));
+    const prodBln  = (window.produksiList || []).filter(p => p.tanggal?.startsWith(bulan));
+    const sezBln   = (window.sezingList   || []).filter(s => s.tanggal?.startsWith(bulan));
+
+    let rPlaner = 0, rPress = 0, rSeri = 0;
+    prodBln.forEach(p => {
+        const s1 = p.shift1 || {}, s2 = p.shift2 || {};
+        rPlaner += (s1.planerBagus || 0) + (s2.planerBagus || 0);
+        rPress  += (s1.press       || 0) + (s2.press       || 0);
+        rSeri   += (s1.seri        || 0) + (s2.seri        || 0);
+    });
+
+    const rKayu    = kayuBln.reduce((a, k) => a + (k.volume        || 0), 0);
+    const rSawmill = sawBln .reduce((a, s) => a + (s.prosesSawmill || 0), 0);
+    const rSezing  = sezBln .reduce((a, s) => a + (s.volume        || 0), 0);
+
+    // ── Update badge hari kerja ──
+    if (badge) {
+        const sabtulbl = cfg.liburSabtu ? 'Sen–Jum' : 'Sen–Sab';
+        const liburExtra = hariLiburSet.size;
+        badge.innerHTML = `
+            <span style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+                          padding:6px 14px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+                📅 Hari kerja s/d hari ini:
+                <span style="color:var(--gold);font-weight:800;font-family:var(--font-mono);font-size:16px;">
+                    ${jumlahHariKerja}</span>
+                <span style="opacity:.6;">/ ${totalHariBulan} hari</span>
+            </span>
+            <span style="font-size:10px;color:var(--muted);">
+                ${sabtulbl}${liburExtra ? ` · ${liburExtra} libur khusus` : ''}
+                ${sisaHari > 0 ? ` · <b style="color:var(--gold);">${sisaHari} hari kerja tersisa</b>` : ' · Bulan selesai'}
+            </span>`;
+    }
+
+    // ── Tidak ada hari kerja ──
+    if (jumlahHariKerja === 0) {
+        cont.innerHTML = `<div style="text-align:center;padding:32px;color:var(--muted);font-size:13px;">
+            📭 Belum ada hari kerja yang terhitung bulan ini.
+        </div>`;
+        return;
+    }
+
+    // ── Helpers ──
+    const pct    = (r, t) => t > 0 ? Math.min(999, (r / t) * 100) : 0;
+    const getStatus = p => p >= 100 ? { label: 'TERCAPAI',   color: 'var(--green)',  bg: 'rgba(74,222,128,.08)'  }
+                         : p >= 75  ? { label: 'ON TRACK',   color: 'var(--gold)',   bg: 'rgba(234,179,8,.08)'   }
+                         : p >= 50  ? { label: 'PERLU PACU', color: 'var(--orange)', bg: 'rgba(249,115,22,.08)'  }
+                         :            { label: 'KRITIS',     color: 'var(--red)',    bg: 'rgba(239,68,68,.08)'   };
+
+    const fmtVal = (v, dec) => dec
+        ? fmtDec(v, 2)
+        : fmt(Math.round(v));
+
+    // ── Data per hari untuk sparkline ──
+    // Sparkline mini: realisasi aktual per hari aktif (max 20 bar terakhir)
+    const sparkDays   = hariKerja.slice(-20);
+    const sparkLabels = sparkDays.map(d => d.slice(8)); // "DD"
+
+    const sparkKayu   = sparkDays.map(d => (window.kayuList    ||[]).filter(k=>k.tanggal===d).reduce((a,k)=>a+(k.volume||0),0));
+    const sparkSaw    = sparkDays.map(d => (window.sawmillList ||[]).filter(s=>s.tanggal===d).reduce((a,s)=>a+(s.prosesSawmill||0),0));
+    const sparkSez    = sparkDays.map(d => (window.sezingList  ||[]).filter(s=>s.tanggal===d).reduce((a,s)=>a+(s.volume||0),0));
+    let   sparkPrd = {}; (window.produksiList||[]).filter(p=>p.tanggal?.startsWith(bulan)).forEach(p=>{
+        const d=p.tanggal; if(!sparkPrd[d]) sparkPrd[d]={planer:0,press:0};
+        const s1=p.shift1||{},s2=p.shift2||{};
+        sparkPrd[d].planer+=(s1.planerBagus||0)+(s2.planerBagus||0);
+        sparkPrd[d].press +=(s1.press||0)+(s2.press||0);
+    });
+    const sparkPlaner = sparkDays.map(d => sparkPrd[d]?.planer || 0);
+    const sparkPress  = sparkDays.map(d => sparkPrd[d]?.press  || 0);
+
+    // ── Metrics ──
+    const metrics = [
+        { key:'kayu',   label:'🪵 Kayu Masuk',   real:rKayu,    target:targetKayu,    tHari:tKayu,    unit:'m³',  dec:true,  color:'var(--orange)', sparkData:sparkKayu  },
+        { key:'saw',    label:'🪚 Sawmill',       real:rSawmill, target:targetSawmill, tHari:tSawmill, unit:'m³',  dec:true,  color:'var(--gold)',   sparkData:sparkSaw   },
+        { key:'planer', label:'📦 Planer Bagus',  real:rPlaner,  target:targetPlaner,  tHari:tPlaner,  unit:'m³',  dec:true,  color:'#e8c84a',       sparkData:sparkPlaner},
+        { key:'press',  label:'🔩 Press',         real:rPress,   target:targetPress,   tHari:tPress,   unit:'lbr', dec:false, color:'#60a5fa',       sparkData:sparkPress },
+        { key:'seri',   label:'🔗 Seri',          real:rSeri,    target:targetSeri,    tHari:tSeri,    unit:'lbr', dec:false, color:'#a78bfa',       sparkData:null       },
+        { key:'sezing', label:'📏 Sezing',        real:rSezing,  target:targetSezing,  tHari:tSezing,  unit:'m³',  dec:true,  color:'var(--green)',  sparkData:sparkSez   },
+    ];
+
+    // ── Render kartu ──
+    const cardsHtml = metrics.map(m => {
+        const p  = pct(m.real, m.target);
+        const st = getStatus(p);
+        const barW = Math.min(100, p).toFixed(1);
+        const sisa = m.target - m.real;
+        const sisaTxt = sisa > 0
+            ? `Sisa ${fmtVal(sisa, m.dec)} ${m.unit}`
+            : `<span style="color:var(--green);">+${fmtVal(Math.abs(sisa), m.dec)} ${m.unit} lebih</span>`;
+        const canvasId = `spark-hari-aktif-${m.key}`;
+
+        return `
+        <div style="background:var(--bg2);border:1px solid var(--border);
+                    border-top:3px solid ${m.color};border-radius:12px;
+                    padding:16px;display:flex;flex-direction:column;gap:10px;">
+            <!-- Header -->
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                <div>
+                    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;
+                                letter-spacing:.9px;font-weight:600;margin-bottom:4px;">${m.label}</div>
+                    <div style="font-size:22px;font-weight:800;color:${m.color};
+                                font-family:var(--font-mono);line-height:1.1;">
+                        ${fmtVal(m.real, m.dec)}
+                        <span style="font-size:11px;color:var(--muted);font-weight:400;"> ${m.unit}</span>
+                    </div>
+                    <div style="font-size:10px;color:var(--muted);margin-top:3px;">
+                        Target: <span style="font-family:var(--font-mono);">${fmtVal(m.target, m.dec)} ${m.unit}</span>
+                        <span style="opacity:.6;"> (${jumlahHariKerja} hr × ${m.dec ? fmtDec(m.tHari,1) : fmt(m.tHari)})</span>
+                    </div>
+                </div>
+                <!-- Pct circle -->
+                <div style="flex-shrink:0;text-align:center;">
+                    <div style="font-size:22px;font-weight:900;color:${st.color};
+                                font-family:var(--font-mono);line-height:1;">${p.toFixed(1)}%</div>
+                    <div style="font-size:9px;font-weight:700;letter-spacing:.6px;
+                                color:${st.color};background:${st.bg};
+                                padding:2px 8px;border-radius:20px;margin-top:4px;">${st.label}</div>
+                </div>
+            </div>
+            <!-- Progress bar -->
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:${barW}%;
+                            background:linear-gradient(90deg,${m.color}88,${m.color});
+                            border-radius:3px;transition:width .5s;"></div>
+            </div>
+            <!-- Sisa + sparkline -->
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;">
+                <div style="font-size:10px;color:var(--muted);">${sisaTxt}</div>
+                ${m.sparkData ? `<canvas id="${canvasId}" width="80" height="28" style="flex-shrink:0;"></canvas>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    // ── Rata-rata keseluruhan ──
+    const avgPct = metrics.reduce((a, m) => a + pct(m.real, m.target), 0) / metrics.length;
+    const avgSt  = getStatus(avgPct);
+
+    cont.innerHTML = `
+    <!-- Summary strip -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+                padding:10px 16px;margin-bottom:14px;
+                display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="display:flex;gap:20px;flex:1;flex-wrap:wrap;">
+            ${metrics.map(m => {
+                const p = pct(m.real, m.target);
+                const c = p>=100?'var(--green)':p>=75?'var(--gold)':p>=50?'var(--orange)':'var(--red)';
+                return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;min-width:56px;">
+                    <div style="font-size:9px;color:var(--muted);text-align:center;line-height:1.2;">${m.label.split(' ').slice(1).join(' ')}</div>
+                    <div style="font-size:14px;font-weight:800;color:${c};font-family:var(--font-mono);">${p.toFixed(0)}%</div>
+                </div>`;
+            }).join('')}
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+            <div style="font-size:10px;color:var(--muted);">Rata-rata pencapaian</div>
+            <div style="font-size:26px;font-weight:900;color:${avgSt.color};font-family:var(--font-mono);line-height:1;">${avgPct.toFixed(1)}%</div>
+            <div style="font-size:9px;font-weight:700;color:${avgSt.color};background:${avgSt.bg};
+                        padding:2px 10px;border-radius:20px;display:inline-block;margin-top:2px;">${avgSt.label}</div>
+        </div>
+    </div>
+    <!-- Kartu per indikator -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+        ${cardsHtml}
+    </div>`;
+
+    // ── Render sparklines setelah DOM siap ──
+    if (!window.Chart) return;
+    metrics.forEach(m => {
+        if (!m.sparkData) return;
+        const ctx = document.getElementById(`spark-hari-aktif-${m.key}`);
+        if (!ctx) return;
+        if (ctx._sp) ctx._sp.destroy();
+        ctx._sp = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: sparkLabels,
+                datasets: [{ data: m.sparkData, backgroundColor: m.color + '88',
+                             borderColor: m.color, borderWidth: 1, borderRadius: 2 }]
+            },
+            options: {
+                animation: false,
+                plugins: { legend: { display: false }, tooltip: {
+                    callbacks: { label: ctx => `${m.dec ? ctx.raw.toFixed(2) : ctx.raw} ${m.unit}` }
+                }},
+                scales: {
+                    x: { display: false },
+                    y: { display: false }
+                }
+            }
+        });
+    });
+};
 
 // ── 3. CHARTS TARGET VS REALISASI KUMULATIF ──────────────────────
 window.renderTargetCharts = function () {
@@ -457,6 +702,10 @@ function formatBulan(ym) {
     const [y,m] = ym.split('-');
     return ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][parseInt(m)-1]+' '+y;
 }
+// Expose helpers for export-pdf.js
+window.formatBulan           = formatBulan;
+window.isTargetDay           = isTargetDay;
+window.getTargetCumulativeUpTo = getTargetCumulativeUpTo;
 
 // ── Auto-init ─────────────────────────────────────────────────────
 (function () {

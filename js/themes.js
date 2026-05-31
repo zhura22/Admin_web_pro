@@ -166,6 +166,58 @@ const themes = {
         }
     },
 
+    // ── Noir — Cinematic Black & White ──
+    noir: {
+        name: 'Noir',
+        icon: '🖤',
+        variables: {
+            '--gold':         '#ffffff',
+            '--gold-light':   '#e8e8e8',
+            '--gold-dim':     'rgba(255,255,255,0.07)',
+
+            '--bg':           '#000000',
+            '--bg2':          '#090909',
+            '--bg3':          '#111111',
+            '--border':       'rgba(255,255,255,0.09)',
+
+            '--text':         '#efefef',
+            '--muted':        '#4a4a4a',
+
+            '--green':        '#a8e6a3',
+            '--green-bg':     'rgba(168,230,163,0.09)',
+            '--red':          '#f0a0a0',
+            '--red-bg':       'rgba(240,160,160,0.09)',
+            '--blue':         '#a0c4f0',
+            '--orange':       '#f0c888',
+            '--cyan':         '#a0e0e0',
+
+            '--input-bg':     '#0d0d0d',
+            '--input-border': 'rgba(255,255,255,0.11)',
+            '--input-color':  '#efefef',
+
+            '--row-even':     '#060606',
+            '--td-border':    'rgba(255,255,255,0.045)',
+
+            '--pill-bg':      '#111111',
+            '--palet-row-bg': '#090909',
+            '--flow-step-bg': '#090909',
+
+            '--signin-input-bg':     '#0d0d0d',
+            '--signin-input-border': 'rgba(255,255,255,0.11)',
+
+            '--header-bg':     'linear-gradient(180deg, #0e0e0e 0%, #000000 100%)',
+            '--header-border': 'rgba(255,255,255,0.13)',
+
+            '--sidebar-hover-color': '#ffffff',
+            '--shadow':        '0 6px 40px rgba(0,0,0,0.95)',
+
+            '--radius':        '12px',
+            '--radius-sm':     '8px',
+            '--glass-blur':    '0px',
+            '--glass-saturate':'100%'
+        }
+    },
+
     // ── Liquid Glass — iOS-inspired frosted glass ──
     liquidGlass: {
         name: 'Liquid Glass',
@@ -234,9 +286,24 @@ const themeBodies = {
     blue: { bg: '', image: '', attachment: '' },
     green: { bg: '', image: '', attachment: '' },
     glassPurple: {
-        bg: '#07050f',
+        bg: `radial-gradient(ellipse at 20% 15%, rgba(120,40,220,0.55) 0%, transparent 50%),
+             radial-gradient(ellipse at 80% 10%, rgba(180,60,255,0.40) 0%, transparent 45%),
+             radial-gradient(ellipse at 60% 75%, rgba(90,20,180,0.45) 0%, transparent 50%),
+             radial-gradient(ellipse at 10% 80%, rgba(140,0,255,0.30) 0%, transparent 45%),
+             radial-gradient(ellipse at 50% 45%, rgba(60,0,120,0.50) 0%, transparent 60%),
+             #07050f`.replace(/\s+/g,' ').trim(),
         attachment: 'fixed',
         bodyClass: 'glass-purple'
+    },
+    noir: {
+        bg: `radial-gradient(ellipse at 0% 0%,   rgba(30,30,30,0.80) 0%, transparent 50%),
+             radial-gradient(ellipse at 100% 0%,  rgba(20,20,28,0.70) 0%, transparent 45%),
+             radial-gradient(ellipse at 100% 100%, rgba(10,10,10,0.90) 0%, transparent 50%),
+             radial-gradient(ellipse at 0% 100%,  rgba(18,18,22,0.75) 0%, transparent 45%),
+             radial-gradient(ellipse at 50% 50%,  rgba(5,5,8,1.00)   0%, transparent 55%),
+             #000000`.replace(/\s+/g,' ').trim(),
+        attachment: 'fixed',
+        bodyClass: 'noir'
     },
     liquidGlass: {
         // Soft colourful mesh — makes frosted panels pop
@@ -268,13 +335,16 @@ function applyTheme(themeId) {
     document.body.style.backgroundAttachment = bodyStyle.attachment || '';
 
     // Toggle theme body classes
-    document.body.classList.remove('liquid-glass', 'glass-purple');
+    document.body.classList.remove('liquid-glass', 'glass-purple', 'noir');
     const bodyConf = themeBodies[themeId] || {};
     if (bodyConf.bodyClass) document.body.classList.add(bodyConf.bodyClass);
     if (themeId === 'liquidGlass') document.body.classList.add('liquid-glass');
 
-    // Ribbon canvas — show only for glassPurple
-    manageRibbonCanvas(themeId === 'glassPurple');
+    // Clean up any leftover canvas/overlay from previous session
+    ['glass-ribbon-canvas','noir-grain-canvas','noir-vignette'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    });
 
     // Persist & update toggle button
     localStorage.setItem('app_theme', themeId);
@@ -301,88 +371,3 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSavedTheme();
 });
 
-/* ── Animated ribbon canvas for Glass Purple theme ── */
-function manageRibbonCanvas(show) {
-    let canvas = document.getElementById('glass-ribbon-canvas');
-    if (!show) {
-        if (canvas) canvas.remove();
-        return;
-    }
-    if (!canvas) {
-        canvas = document.createElement('canvas');
-        canvas.id = 'glass-ribbon-canvas';
-        document.body.insertBefore(canvas, document.body.firstChild);
-    }
-    startRibbons(canvas);
-}
-
-function startRibbons(canvas) {
-    // Stop any existing animation
-    if (canvas._rafId) cancelAnimationFrame(canvas._rafId);
-
-    const resize = () => {
-        canvas.width  = window.innerWidth;
-        canvas.height = window.innerHeight;
-    };
-    resize();
-    window.addEventListener('resize', resize);
-
-    const ctx = canvas.getContext('2d');
-    const W = () => canvas.width;
-    const H = () => canvas.height;
-
-    // Define ribbon paths
-    const ribbons = [
-        { x: 0.15, y: 0.1, speed: 0.00018, amp: 0.22, freq: 1.1, phase: 0,    width: 2.5, color: [168,85,247], alpha: 0.35 },
-        { x: 0.80, y: 0.05, speed: 0.00014, amp: 0.18, freq: 0.9, phase: 1.2, width: 1.8, color: [196,156,255], alpha: 0.28 },
-        { x: 0.05, y: 0.6,  speed: 0.00020, amp: 0.25, freq: 1.3, phase: 2.4, width: 2.0, color: [139,92,246],  alpha: 0.30 },
-        { x: 0.55, y: 0.85, speed: 0.00016, amp: 0.15, freq: 0.7, phase: 0.8, width: 1.5, color: [232,121,249], alpha: 0.22 },
-        { x: 0.90, y: 0.45, speed: 0.00012, amp: 0.20, freq: 1.5, phase: 3.6, width: 1.2, color: [167,139,250], alpha: 0.20 },
-    ];
-
-    let t = 0;
-    const POINTS = 180;
-
-    function draw() {
-        if (!document.getElementById('glass-ribbon-canvas')) return;
-        ctx.clearRect(0, 0, W(), H());
-
-        ribbons.forEach(r => {
-            // Build bezier path across screen
-            const pts = [];
-            for (let i = 0; i <= POINTS; i++) {
-                const px = (r.x + i / POINTS * 1.1 - 0.05) * W();
-                const wave1 = Math.sin(i / POINTS * Math.PI * 2 * r.freq + t * r.speed * 1000 + r.phase) * r.amp * H();
-                const wave2 = Math.sin(i / POINTS * Math.PI * 3.7 * r.freq + t * r.speed * 700 + r.phase * 1.3) * r.amp * 0.4 * H();
-                const py = r.y * H() + wave1 + wave2;
-                pts.push({ x: px, y: py });
-            }
-
-            // Draw ribbon with gradient stroke
-            const grad = ctx.createLinearGradient(0, 0, W(), 0);
-            grad.addColorStop(0,   `rgba(${r.color},0)`);
-            grad.addColorStop(0.2, `rgba(${r.color},${r.alpha})`);
-            grad.addColorStop(0.5, `rgba(${r.color},${r.alpha * 1.4})`);
-            grad.addColorStop(0.8, `rgba(${r.color},${r.alpha})`);
-            grad.addColorStop(1,   `rgba(${r.color},0)`);
-
-            ctx.beginPath();
-            ctx.moveTo(pts[0].x, pts[0].y);
-            for (let i = 1; i < pts.length - 1; i++) {
-                const mx = (pts[i].x + pts[i+1].x) / 2;
-                const my = (pts[i].y + pts[i+1].y) / 2;
-                ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
-            }
-            ctx.strokeStyle = grad;
-            ctx.lineWidth = r.width;
-            ctx.shadowColor = `rgba(${r.color}, 0.6)`;
-            ctx.shadowBlur = 18;
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-        });
-
-        t = performance.now();
-        canvas._rafId = requestAnimationFrame(draw);
-    }
-    draw();
-}

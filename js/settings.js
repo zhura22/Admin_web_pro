@@ -35,6 +35,11 @@ const DEFAULT_SETTINGS = {
     // Backup
     lastBackup:          '',
     backupReminderHari:  7,
+
+    // Hari libur & non-masuk (format YYYY-MM-DD, Minggu otomatis skip)
+    // Sabtu dianggap masuk kerja kecuali masuk daftar ini
+    hariLibur:           [],
+    liburSabtu:          false,   // true = Sabtu juga libur
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -195,7 +200,35 @@ function renderSettingsForm() {
     <div class="form-actions" style="border-top:none;padding-top:0;">
         <button class="btn btn-secondary" onclick="window.resetSettings()">↩ Reset Default</button>
         <button class="btn btn-primary"   onclick="window.saveSettingsForm()">💾 Simpan Pengaturan</button>
+    </div>
+
+    <!-- ── HARI LIBUR & NON-MASUK ── -->
+    <div class="form-card" style="margin-bottom:16px;margin-top:8px;">
+        <div class="form-title">📅 Hari Libur &amp; Non-Masuk</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+            Minggu otomatis tidak dihitung. Tambahkan libur nasional, cuti bersama, atau
+            hari lain pabrik tidak beroperasi. Target harian <b>tidak</b> diakumulasikan pada hari-hari ini.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+            <div class="field" style="margin:0;flex:1;min-width:140px;">
+                <label>Sabtu</label>
+                <select id="cfg-libur-sabtu">
+                    <option value="false" ${!(cfg.liburSabtu)?'selected':''}>✅ Masuk Kerja</option>
+                    <option value="true"  ${cfg.liburSabtu?'selected':''}>🔴 Libur</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-end;flex:2;min-width:220px;">
+                <div class="field" style="margin:0;flex:1;">
+                    <label>Tambah Tanggal Libur</label>
+                    <input type="date" id="cfg-libur-tambah">
+                </div>
+                <button class="btn btn-secondary btn-sm" style="flex-shrink:0;height:36px;"
+                    onclick="window.tambahHariLibur()">+ Tambah</button>
+            </div>
+        </div>
+        <div id="libur-list-container"></div>
     </div>`;
+    renderLiburList();
 }
 
 function settingField(id, label, value, type='text', step='') {
@@ -238,6 +271,7 @@ window.saveSettingsForm = function () {
     cfg.backupReminderHari  = ri('cfg-backup-reminder',cfg.backupReminderHari);
     cfg.theme               = document.getElementById('cfg-theme')?.value      || 'dark';
     cfg.showAnimations      = document.getElementById('cfg-animations')?.value !== 'false';
+    cfg.liburSabtu          = document.getElementById('cfg-libur-sabtu')?.value === 'true';
 
     saveSettings();
     applyTheme();
@@ -248,6 +282,59 @@ window.saveSettingsForm = function () {
     renderDashboard?.();
     renderRekap?.();
     renderSettingsBackupAlert();
+};
+
+// ── Render daftar hari libur ──────────────────────────────────────
+function renderLiburList() {
+    const cont = document.getElementById('libur-list-container');
+    if (!cont) return;
+    const libur = (window.appSettings.hariLibur || []).slice().sort();
+    if (!libur.length) {
+        cont.innerHTML = `<div style="font-size:11px;color:var(--muted);
+            padding:8px 0;">Belum ada hari libur yang ditambahkan.</div>`;
+        return;
+    }
+    const HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    cont.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${libur.map(tgl => {
+            const d   = new Date(tgl + 'T00:00:00');
+            const lbl = `${HARI[d.getDay()]}, ${tgl}`;
+            return `<span style="background:var(--bg3);border:1px solid var(--border);
+                        border-radius:20px;padding:4px 10px 4px 12px;font-size:11px;
+                        color:var(--text);display:flex;align-items:center;gap:6px;">
+                        📅 ${lbl}
+                        <button onclick="window.hapusHariLibur('${tgl}')"
+                            style="background:none;border:none;cursor:pointer;
+                                   color:var(--muted);font-size:13px;padding:0;line-height:1;"
+                            title="Hapus">×</button>
+                    </span>`;
+        }).join('')}
+    </div>`;
+}
+
+window.tambahHariLibur = function () {
+    const inp = document.getElementById('cfg-libur-tambah');
+    const tgl = inp?.value;
+    if (!tgl) { toast('⚠️ Pilih tanggal terlebih dahulu'); return; }
+    const cfg = window.appSettings;
+    if (!Array.isArray(cfg.hariLibur)) cfg.hariLibur = [];
+    if (cfg.hariLibur.includes(tgl)) { toast('⚠️ Tanggal sudah ada dalam daftar'); return; }
+    cfg.hariLibur.push(tgl);
+    saveSettings();
+    if (inp) inp.value = '';
+    renderLiburList();
+    renderDashboard?.();
+    toast(`✅ ${tgl} ditambahkan ke daftar libur`);
+};
+
+window.hapusHariLibur = function (tgl) {
+    const cfg = window.appSettings;
+    cfg.hariLibur = (cfg.hariLibur || []).filter(t => t !== tgl);
+    saveSettings();
+    renderLiburList();
+    renderDashboard?.();
+    toast(`🗑️ ${tgl} dihapus dari daftar libur`);
 };
 
 window.resetSettings = function () {

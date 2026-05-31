@@ -437,6 +437,7 @@ window.renderOrder = function() {
                         <th>Perusahaan</th>
                         <th>Tgl / Deadline</th>
                         <th class="r">Volume (m³)</th>
+                        <th style="text-align:center;">Tebal</th>
                         <th>Progress</th>
                         <th class="r">Sisa (m³)</th>
                         <th>Status</th>
@@ -650,6 +651,8 @@ window.openOrderForm = function(item) {
     document.getElementById('order-volume').value    = item?.volumeOrder  || '';
 
     ensureExtraOrderFields();
+    const ketEl = document.getElementById('order-ketebalan');
+    if (ketEl) ketEl.value = item?.ketebalanProduk || '';
 
     document.getElementById('order-deadline').value  = item?.deadline     || '';
     document.getElementById('order-prioritas').value = item?.prioritas    || 'normal';
@@ -715,6 +718,7 @@ function ensureExtraOrderFields() {
 window.saveOrder = function() {
     const tgl        = document.getElementById('order-tanggal').value.trim();
     const po         = document.getElementById('order-po').value.trim();
+    const ketebalanProduk = document.getElementById('order-ketebalan')?.value || '';
     const perusahaan = document.getElementById('order-perusahaan').value.trim();
     const vol        = document.getElementById('order-volume').value;
     const deadline   = document.getElementById('order-deadline')?.value || '';
@@ -740,6 +744,7 @@ window.saveOrder = function() {
         kodePO:      po,
         perusahaan:  perusahaan,
         volumeOrder: parseFloat(vol),
+        ketebalanProduk: ketebalanProduk,
         deadline:    deadline,
         prioritas:   prioritas,
         catatan:     catatan
