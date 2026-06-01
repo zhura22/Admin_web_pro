@@ -200,9 +200,10 @@
                         <div class="grid2">
                             <div class="field"><label>Tanggal *</label><input type="date" id="order-tanggal"></div>
                             <div class="field"><label>Kode PO *</label><input type="text" id="order-po" placeholder="PO-001"></div>
-                            <div class="field"><label>Perusahaan *</label><input type="text" id="order-perusahaan"></div>
-                            <div class="field"><label>Volume (m³) *</label><input type="number" step="any" id="order-volume" min="0"></div><div class="field"><label>Ketebalan Produk (mm) *</label><select id="order-ketebalan"><option value="">-- Pilih --</option><option value="6">6 mm</option><option value="9">9 mm</option><option value="12">12 mm</option><option value="15">15 mm</option><option value="18">18 mm</option><option value="20">20 mm</option><option value="25">25 mm</option><option value="30">30 mm</option></select></div>
+                            <div class="field" style="grid-column:span 2"><label>Perusahaan *</label><input type="text" id="order-perusahaan"></div>
                         </div>
+                        <div id="order-variants-section"></div>
+                        <div id="order-extra-fields"></div>
                         <div class="form-actions">
                             <button class="btn btn-secondary" onclick="window.closeOrderForm()">Batal</button>
                             <button class="btn btn-primary" onclick="window.saveOrder()">Simpan</button>

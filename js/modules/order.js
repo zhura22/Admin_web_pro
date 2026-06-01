@@ -407,6 +407,40 @@ function injectOrderStyles() {
         .sisa-warn { color: var(--orange); font-weight: 600; }
         .sisa-crit { color: #f87171; font-weight: 700; }
 
+        /* ── Thickness Variant Chips ── */
+        .tebal-chips-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .tebal-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--gold-dim);
+            color: var(--gold);
+            border: 1px solid rgba(200,160,80,.3);
+            border-radius: 20px;
+            padding: 3px 9px;
+            font-size: 10px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            white-space: nowrap;
+        }
+        .tebal-chip .tebal-vol {
+            font-weight: 400;
+            color: var(--muted);
+            font-size: 9px;
+            border-left: 1px solid rgba(200,160,80,.25);
+            padding-left: 5px;
+            margin-left: 1px;
+        }
+        .tebal-unknown {
+            background: rgba(107,114,128,.15);
+            color: var(--muted);
+            border-color: rgba(107,114,128,.3);
+        }
+
         /* ── Detail Panel ── */
         .order-detail-panel {
             background: var(--bg3);
@@ -700,8 +734,7 @@ window.renderOrder = function() {
                         <th>Kode PO</th>
                         <th>Perusahaan</th>
                         <th>Tgl / Deadline</th>
-                        <th class="r">Volume (m³)</th>
-                        <th style="text-align:center;">Tebal</th>
+                        <th>Varian Ketebalan</th>
                         <th>Progress</th>
                         <th class="r">Sisa (m³)</th>
                         <th>Status</th>
@@ -730,6 +763,20 @@ window.renderOrder = function() {
 
             const prioHtml = o.prioritas === 'urgent' ? `<span class="prio-urgent">URGENT</span>` : '';
 
+            // ── Variant ketebalan chips ──
+            const variants = migrateOrderVariants(o);
+            const variantHtml = variants.length
+                ? variants.map(v => v.ketebalan
+                    ? `<span class="tebal-chip">${v.ketebalan}mm<span class="tebal-vol">${fmtDec(v.volume,2)}</span></span>`
+                    : `<span class="tebal-chip tebal-unknown">?mm<span class="tebal-vol">${fmtDec(v.volume,2)}</span></span>`
+                ).join('')
+                : `<span style="color:var(--muted);font-size:10px;">—</span>`;
+
+            const volHtml = `<div class="tebal-chips-wrap">${variantHtml}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:3px;text-align:right;">
+                    Total: <b style="color:var(--gold);">${fmtDec(o.volumeOrder,2)} m³</b>
+                </div>`;
+
             html += `
                 <tr class="${rowClass}" style="cursor:pointer;" onclick="toggleOrderDetail('${o.id}')">
                     <td>
@@ -739,12 +786,11 @@ window.renderOrder = function() {
                         <div class="order-date">${fmtDate(o.tanggal)}</div>
                     </td>
                     <td>${deadlineHtml}</td>
-                    <td class="r">${fmtDec(o.volumeOrder, 2)}</td>
+                    <td>${volHtml}</td>
                     <td>
                         <div class="order-progress-wrap">${(() => {
                             const vol   = o.volumeOrder || 1;
                             const pKirim = Math.min(100, terkirim / vol * 100);
-                            // stok tidak boleh melewati sisa yang belum terkirim
                             const sisaVol = Math.max(0, vol - terkirim);
                             const pStok  = Math.min(sisaVol, stokBoard) / vol * 100;
                             return `
@@ -859,6 +905,36 @@ function renderDetailPanel({ o, terkirim, sisa, persen, stokBoard, status, statu
                 </div>
             </div>
 
+            <!-- Varian Ketebalan Breakdown -->
+            ${(() => {
+                const variants = migrateOrderVariants(o);
+                if (!variants.length) return '';
+                const rows = variants.map(v => {
+                    const pct = o.volumeOrder > 0 ? (v.volume / o.volumeOrder * 100).toFixed(1) : '0';
+                    return `
+                    <div style="display:flex;justify-content:space-between;align-items:center;
+                                padding:7px 10px;background:var(--bg);border:1px solid var(--border);
+                                border-radius:8px;font-size:12px;margin-bottom:5px;">
+                        <span class="tebal-chip" style="pointer-events:none;">
+                            ${v.ketebalan ? v.ketebalan+'mm' : '?mm'}
+                        </span>
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <span style="font-family:var(--font-mono);color:var(--gold);font-weight:700;">
+                                ${fmtDec(v.volume,2)} m³
+                            </span>
+                            <span style="font-size:10px;color:var(--muted);">${pct}%</span>
+                            <div style="width:80px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
+                                <div style="height:100%;width:${pct}%;background:var(--gold);border-radius:3px;"></div>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+                return `<div style="margin-bottom:12px;">
+                    <div class="detail-shipments-title" style="margin-bottom:8px;">📐 Varian Ketebalan</div>
+                    ${rows}
+                </div>`;
+            })()}
+
             <div class="detail-progress">
                 ${(() => {
                     const vol    = o.volumeOrder || 1;
@@ -907,20 +983,153 @@ window.onOrderSearch = function(val) {
 // ─────────────────────────────────────────────
 // FORM: Buka / Tutup / Simpan
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// VARIANT HELPERS
+// ─────────────────────────────────────────────
+const TEBAL_OPTIONS = ['6','9','12','15','18','20','25','30'];
+
+// Migrate legacy single-thickness to variants array
+function migrateOrderVariants(order) {
+    if (order.ketebalanVariants && order.ketebalanVariants.length) return order.ketebalanVariants;
+    if (order.ketebalanProduk) {
+        return [{ ketebalan: order.ketebalanProduk, volume: order.volumeOrder || 0 }];
+    }
+    return [{ ketebalan: '', volume: order.volumeOrder || 0 }];
+}
+window.migrateOrderVariants = migrateOrderVariants;
+
+// Compute total volume from variants
+function computeVariantTotal() {
+    const rows = document.querySelectorAll('.ov-row');
+    let total = 0;
+    rows.forEach(row => {
+        total += parseFloat(row.querySelector('.ov-vol')?.value) || 0;
+    });
+    const el = document.getElementById('ov-total-display');
+    if (el) {
+        el.textContent = fmtDec(total, 2) + ' m³';
+        el.style.color = total > 0 ? 'var(--gold)' : 'var(--muted)';
+    }
+}
+window.computeVariantTotal = computeVariantTotal;
+window.addVariantRow       = addVariantRow;
+
+// Collect variants from form
+function collectVariants() {
+    const rows = document.querySelectorAll('.ov-row');
+    const variants = [];
+    rows.forEach(row => {
+        const k = row.querySelector('.ov-ket')?.value || '';
+        const v = parseFloat(row.querySelector('.ov-vol')?.value) || 0;
+        if (v > 0) variants.push({ ketebalan: k, volume: v });
+    });
+    return variants;
+}
+
+// Render variant rows
+function renderVariantRows(variants) {
+    const tbody = document.getElementById('ov-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    variants.forEach((vr, i) => addVariantRow(vr, i));
+    computeVariantTotal();
+}
+
+function addVariantRow(vr = { ketebalan: '', volume: '' }, idx = null) {
+    const tbody = document.getElementById('ov-tbody');
+    if (!tbody) return;
+    const id = Date.now() + Math.random();
+    const opts = TEBAL_OPTIONS.map(v =>
+        `<option value="${v}"${vr.ketebalan == v ? ' selected' : ''}>${v} mm</option>`
+    ).join('');
+    const tr = document.createElement('tr');
+    tr.className = 'ov-row';
+    tr.style.cssText = 'background:transparent;';
+    tr.innerHTML = `
+        <td style="padding:5px 8px;">
+            <select class="ov-ket" style="background:var(--input-bg);border:1px solid var(--border);
+                color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px;
+                font-family:var(--font-mono);width:100%;cursor:pointer;">
+                <option value="">-- Tebal --</option>${opts}
+            </select>
+        </td>
+        <td style="padding:5px 8px;">
+            <input type="number" step="any" min="0" class="ov-vol"
+                value="${vr.volume || ''}" placeholder="0.000"
+                style="background:var(--input-bg);border:1px solid var(--border);
+                       color:var(--text);padding:6px 10px;border-radius:6px;
+                       font-size:12px;font-family:var(--font-mono);width:100%;text-align:right;"
+                oninput="computeVariantTotal()">
+        </td>
+        <td style="padding:5px 8px;text-align:center;">
+            <button type="button" onclick="this.closest('.ov-row').remove();computeVariantTotal();"
+                style="background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);
+                       border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:13px;
+                       display:inline-flex;align-items:center;justify-content:center;"
+                title="Hapus varian">✕</button>
+        </td>`;
+    tbody.appendChild(tr);
+}
+
+function buildVariantsSection(variants) {
+    const sec = document.getElementById('order-variants-section');
+    if (!sec) return;
+    sec.innerHTML = `
+        <div style="margin:14px 0 6px;padding-top:12px;border-top:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="width:3px;height:14px;background:var(--gold);border-radius:2px;display:inline-block;"></span>
+                    <span style="font-size:12px;font-weight:700;color:var(--text);">📐 Varian Ketebalan & Volume</span>
+                </div>
+                <button type="button" onclick="addVariantRow();computeVariantTotal();"
+                    style="background:var(--gold-dim);color:var(--gold);border:1px solid rgba(200,160,80,.35);
+                           border-radius:20px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer;">
+                    + Tambah Varian
+                </button>
+            </div>
+            <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px;">
+                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <thead>
+                        <tr style="background:var(--bg3);border-bottom:1px solid var(--border);">
+                            <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;
+                                       letter-spacing:.06em;color:var(--muted);width:180px;">Ketebalan (mm)</th>
+                            <th style="padding:8px 10px;text-align:right;font-size:10px;text-transform:uppercase;
+                                       letter-spacing:.06em;color:var(--muted);">Volume (m³)</th>
+                            <th style="width:40px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ov-tbody"></tbody>
+                </table>
+            </div>
+            <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;
+                        padding:8px 12px;background:var(--bg3);border-radius:8px;
+                        border:1px solid var(--gold-dim);">
+                <span style="font-size:11px;color:var(--muted);">Total Volume Order:</span>
+                <span id="ov-total-display" style="font-size:18px;font-weight:800;
+                      font-family:var(--font-mono);color:var(--muted);">0.00 m³</span>
+            </div>
+        </div>`;
+    renderVariantRows(variants);
+}
+
+// ─────────────────────────────────────────────
+// FORM: Buka / Tutup / Simpan
+// ─────────────────────────────────────────────
 window.openOrderForm = function(item) {
     orderEditId = item?.id || null;
-    document.getElementById('order-tanggal').value   = item?.tanggal      || today();
-    document.getElementById('order-po').value        = item?.kodePO       || '';
-    document.getElementById('order-perusahaan').value= item?.perusahaan   || '';
-    document.getElementById('order-volume').value    = item?.volumeOrder  || '';
+    document.getElementById('order-tanggal').value    = item?.tanggal    || today();
+    document.getElementById('order-po').value         = item?.kodePO     || '';
+    document.getElementById('order-perusahaan').value = item?.perusahaan || '';
 
+    // Build variants section
+    const variants = item ? migrateOrderVariants(item) : [{ ketebalan: '', volume: '' }];
+    buildVariantsSection(variants);
+
+    // Extra fields (deadline, prioritas, catatan)
     ensureExtraOrderFields();
-    const ketEl = document.getElementById('order-ketebalan');
-    if (ketEl) ketEl.value = item?.ketebalanProduk || '';
-
-    document.getElementById('order-deadline').value  = item?.deadline     || '';
-    document.getElementById('order-prioritas').value = item?.prioritas    || 'normal';
-    document.getElementById('order-catatan').value   = item?.catatan      || '';
+    document.getElementById('order-deadline').value  = item?.deadline  || '';
+    document.getElementById('order-prioritas').value = item?.prioritas || 'normal';
+    document.getElementById('order-catatan').value   = item?.catatan   || '';
 
     document.getElementById('order-input').classList.remove('hidden');
     document.getElementById('order-list').classList.add('hidden');
@@ -930,67 +1139,53 @@ window.closeOrderForm = function() {
     document.getElementById('order-input').classList.add('hidden');
     document.getElementById('order-list').classList.remove('hidden');
     orderEditId = null;
+    const sec = document.getElementById('order-variants-section');
+    if (sec) sec.innerHTML = '';
+    const ext = document.getElementById('order-extra-fields');
+    if (ext) ext.innerHTML = '';
 };
 
 function ensureExtraOrderFields() {
     if (document.getElementById('order-deadline')) return;
-    const formCard = document.getElementById('order-form');
-    if (!formCard) return;
-
-    const grid = formCard.querySelector('.grid2');
-    if (grid) {
-        const dlField = document.createElement('div');
-        dlField.className = 'field';
-        dlField.innerHTML = `<label>Deadline Pengiriman</label><input type="date" id="order-deadline">`;
-        grid.appendChild(dlField);
-
-        const prioField = document.createElement('div');
-        prioField.className = 'field';
-        prioField.innerHTML = `<label>Prioritas</label>
-            <select id="order-prioritas">
-                <option value="normal">Normal</option>
-                <option value="urgent">🔴 Urgent</option>
-            </select>`;
-        grid.appendChild(prioField);
-
-        const catatanField = document.createElement('div');
-        catatanField.className = 'field';
-        catatanField.style.gridColumn = 'span 2';
-        catatanField.innerHTML = `<label>Catatan</label>
-            <input type="text" id="order-catatan" placeholder="Keterangan tambahan (opsional)">`;
-        grid.appendChild(catatanField);
-    } else {
-        const fallback = document.createElement('div');
-        fallback.innerHTML = `
-            <div class="grid2" style="margin-top:10px;">
-                <div class="field"><label>Deadline Pengiriman</label><input type="date" id="order-deadline"></div>
-                <div class="field"><label>Prioritas</label>
-                    <select id="order-prioritas">
-                        <option value="normal">Normal</option>
-                        <option value="urgent">🔴 Urgent</option>
-                    </select>
-                </div>
-                <div class="field" style="grid-column:span 2;">
-                    <label>Catatan</label>
-                    <input type="text" id="order-catatan" placeholder="Keterangan tambahan (opsional)">
-                </div>
-            </div>`;
-        formCard.insertBefore(fallback, formCard.querySelector('.form-actions'));
-    }
+    const ext = document.getElementById('order-extra-fields');
+    if (!ext) return;
+    ext.innerHTML = `
+        <div class="grid2" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+            <div class="field">
+                <label>Deadline Pengiriman</label>
+                <input type="date" id="order-deadline">
+            </div>
+            <div class="field">
+                <label>Prioritas</label>
+                <select id="order-prioritas">
+                    <option value="normal">Normal</option>
+                    <option value="urgent">🔴 Urgent</option>
+                </select>
+            </div>
+            <div class="field" style="grid-column:span 2;">
+                <label>Catatan</label>
+                <input type="text" id="order-catatan" placeholder="Keterangan tambahan (opsional)">
+            </div>
+        </div>`;
 }
 
 window.saveOrder = function() {
     const tgl        = document.getElementById('order-tanggal').value.trim();
     const po         = document.getElementById('order-po').value.trim();
-    const ketebalanProduk = document.getElementById('order-ketebalan')?.value || '';
     const perusahaan = document.getElementById('order-perusahaan').value.trim();
-    const vol        = document.getElementById('order-volume').value;
     const deadline   = document.getElementById('order-deadline')?.value || '';
     const prioritas  = document.getElementById('order-prioritas')?.value || 'normal';
     const catatan    = document.getElementById('order-catatan')?.value.trim() || '';
 
-    if (!tgl || !po || !perusahaan || !vol || parseFloat(vol) <= 0) {
-        toast('⚠️ Tanggal, Kode PO, Perusahaan, dan Volume wajib diisi!');
+    if (!tgl || !po || !perusahaan) {
+        toast('⚠️ Tanggal, Kode PO, dan Perusahaan wajib diisi!');
+        return;
+    }
+
+    // Collect variants
+    const variants = collectVariants();
+    if (!variants.length || variants.every(v => v.volume <= 0)) {
+        toast('⚠️ Tambahkan minimal 1 varian ketebalan dengan volume > 0!');
         return;
     }
 
@@ -1002,16 +1197,19 @@ window.saveOrder = function() {
         return;
     }
 
+    // Total volume = sum of all variants
+    const totalVolume = variants.reduce((s, v) => s + v.volume, 0);
+
     const item = {
-        id:          orderEditId || uid(),
-        tanggal:     tgl,
-        kodePO:      po,
-        perusahaan:  perusahaan,
-        volumeOrder: parseFloat(vol),
-        ketebalanProduk: ketebalanProduk,
-        deadline:    deadline,
-        prioritas:   prioritas,
-        catatan:     catatan
+        id:                orderEditId || uid(),
+        tanggal:           tgl,
+        kodePO:            po,
+        perusahaan:        perusahaan,
+        volumeOrder:       totalVolume,
+        ketebalanVariants: variants,
+        deadline:          deadline,
+        prioritas:         prioritas,
+        catatan:           catatan
     };
 
     if (orderEditId) {
