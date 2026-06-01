@@ -66,25 +66,207 @@ function injectOrderStyles() {
     const style = document.createElement('style');
     style.id = 'order-styles';
     style.textContent = `
+        /* ══════════════════════════════════════════
+           VOLUME KPI SECTION — Hero Metrics
+        ══════════════════════════════════════════ */
+        .order-kpi-section {
+            margin-bottom: 20px;
+        }
+        .order-kpi-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .order-kpi-title {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .order-kpi-title::before {
+            content: '';
+            display: inline-block;
+            width: 3px; height: 12px;
+            background: var(--gold);
+            border-radius: 2px;
+            margin-right: 7px;
+            vertical-align: middle;
+        }
+        .order-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        @media (max-width: 900px) {
+            .order-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 580px) {
+            .order-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .okpi {
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            position: relative;
+            overflow: hidden;
+            transition: transform .15s, border-color .15s;
+        }
+        .okpi:hover { transform: translateY(-2px); }
+        .okpi::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            border-radius: 12px 12px 0 0;
+        }
+        .okpi.kpi-gold::before   { background: var(--gold); }
+        .okpi.kpi-green::before  { background: var(--green); }
+        .okpi.kpi-blue::before   { background: #60a5fa; }
+        .okpi.kpi-orange::before { background: var(--orange); }
+        .okpi.kpi-red::before    { background: #f87171; }
+
+        .okpi-icon {
+            font-size: 18px;
+            margin-bottom: 6px;
+            display: block;
+            line-height: 1;
+        }
+        .okpi-val {
+            font-size: 22px;
+            font-weight: 800;
+            line-height: 1.1;
+            font-family: var(--font-mono);
+            letter-spacing: -.02em;
+        }
+        .okpi-unit {
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--muted);
+            margin-left: 2px;
+        }
+        .okpi-lbl {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 5px;
+            line-height: 1.4;
+            font-weight: 500;
+        }
+        .okpi-sub {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid var(--border);
+        }
+        .okpi.kpi-gold  .okpi-val { color: var(--gold); }
+        .okpi.kpi-green .okpi-val { color: var(--green); }
+        .okpi.kpi-blue  .okpi-val { color: #60a5fa; }
+        .okpi.kpi-orange .okpi-val { color: var(--orange); }
+        .okpi.kpi-red   .okpi-val { color: #f87171; }
+
+        /* Overall progress bar in KPI section */
+        .order-kpi-progress-wrap {
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+        }
+        .kpi-prog-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .kpi-prog-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+        .kpi-prog-pct {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--gold);
+            font-family: var(--font-mono);
+        }
+        .kpi-prog-bar {
+            height: 10px;
+            background: var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            margin-bottom: 8px;
+        }
+        .kpi-prog-seg {
+            height: 100%;
+            border-radius: 10px;
+            transition: width .6s cubic-bezier(.4,0,.2,1);
+        }
+        .kpi-prog-legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            font-size: 10px;
+            color: var(--muted);
+        }
+        .kpi-prog-legend span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .kpi-leg-dot {
+            width: 8px; height: 8px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+        /* Divider between KPI and status cards */
+        .order-section-divider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 4px 0 10px;
+        }
+        .order-section-divider span {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .order-section-divider::before,
+        .order-section-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
         /* ── Order Summary Cards ── */
         .order-summary-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 8px;
             margin-bottom: 18px;
         }
         .osc {
             background: var(--bg3);
             border: 1px solid var(--border);
             border-radius: 10px;
-            padding: 12px 14px;
+            padding: 10px 12px;
             text-align: center;
             transition: transform .15s;
             cursor: pointer;
         }
         .osc:hover { transform: translateY(-2px); }
         .osc.active { border-color: var(--gold); background: var(--gold-dim); }
-        .osc-val { font-size: 26px; font-weight: 700; line-height: 1; }
+        .osc-val { font-size: 22px; font-weight: 700; line-height: 1; font-family: var(--font-mono); }
         .osc-lbl { font-size: 10px; color: var(--muted); margin-top: 4px; }
         .osc-val.c-green  { color: var(--green); }
         .osc-val.c-gold   { color: var(--gold); }
@@ -338,6 +520,16 @@ window.renderOrder = function() {
     const terlambat = enriched.filter(x => x.status === 'Terlambat').length;
     const pending = enriched.filter(x => x.status === 'Pending').length;
 
+    // ── Volume KPI calculations ──
+    const totalVolumeOrder    = enriched.reduce((s, x) => s + (x.o.volumeOrder || 0), 0);
+    const totalVolumeTerkirim = enriched.reduce((s, x) => s + x.terkirim, 0);
+    const totalVolumeStok     = enriched.reduce((s, x) => s + x.stokBoard, 0);
+    const totalVolumeSisa     = enriched.reduce((s, x) => s + x.sisa, 0);
+    const totalSisaAktif      = activeOrders.reduce((s, x) => s + x.sisa, 0);
+    const totalVolumeAktif    = activeOrders.reduce((s, x) => s + (x.o.volumeOrder || 0), 0);
+    const pctOverall          = totalVolumeOrder > 0 ? (totalVolumeTerkirim / totalVolumeOrder * 100) : 0;
+    const pctStokBar          = totalVolumeOrder > 0 ? (Math.min(totalVolumeSisa, totalVolumeStok) / totalVolumeOrder * 100) : 0;
+
     document.getElementById('order-count').textContent = total + ' order';
 
     // ── Filter & Search (diterapkan ke data yang akan ditampilkan sesuai tab) ──
@@ -370,6 +562,78 @@ window.renderOrder = function() {
     // Render HTML
     // ─────────────────────────
     let html = `
+        <!-- ══ VOLUME KPI SECTION ══ -->
+        <div class="order-kpi-section">
+            <div class="order-kpi-header">
+                <span class="order-kpi-title">Volume Order (m³)</span>
+            </div>
+
+            <div class="order-kpi-grid">
+                <!-- Total Volume Order -->
+                <div class="okpi kpi-gold">
+                    <span class="okpi-icon">📦</span>
+                    <div class="okpi-val">${fmtDec(totalVolumeOrder, 2)}<span class="okpi-unit">m³</span></div>
+                    <div class="okpi-lbl">Total Volume Order</div>
+                    <div class="okpi-sub">${total} order terdaftar</div>
+                </div>
+
+                <!-- Volume Terkirim -->
+                <div class="okpi kpi-green">
+                    <span class="okpi-icon">🚛</span>
+                    <div class="okpi-val">${fmtDec(totalVolumeTerkirim, 2)}<span class="okpi-unit">m³</span></div>
+                    <div class="okpi-lbl">Sudah Terkirim</div>
+                    <div class="okpi-sub">${pctOverall.toFixed(1)}% dari total order</div>
+                </div>
+
+                <!-- Stok Board -->
+                <div class="okpi kpi-blue">
+                    <span class="okpi-icon">🏗️</span>
+                    <div class="okpi-val">${fmtDec(totalVolumeStok, 2)}<span class="okpi-unit">m³</span></div>
+                    <div class="okpi-lbl">Stok Board Siap</div>
+                    <div class="okpi-sub">Siap kirim ke buyer</div>
+                </div>
+
+                <!-- Sisa Belum Dikerjakan (fokus order aktif) -->
+                <div class="okpi ${totalSisaAktif > 0 ? (terlambat > 0 ? 'kpi-red' : (mendesak > 0 ? 'kpi-orange' : 'kpi-orange')) : 'kpi-green'}">
+                    <span class="okpi-icon">${totalSisaAktif > 0 ? '⏳' : '✅'}</span>
+                    <div class="okpi-val">${fmtDec(totalSisaAktif, 2)}<span class="okpi-unit">m³</span></div>
+                    <div class="okpi-lbl">Sisa Belum Dikirim</div>
+                    <div class="okpi-sub">${aktif} order masih aktif</div>
+                </div>
+
+                <!-- % Pemenuhan -->
+                <div class="okpi kpi-gold">
+                    <span class="okpi-icon">📊</span>
+                    <div class="okpi-val">${pctOverall.toFixed(1)}<span class="okpi-unit">%</span></div>
+                    <div class="okpi-lbl">Pemenuhan Keseluruhan</div>
+                    <div class="okpi-sub">${selesai} order selesai</div>
+                </div>
+            </div>
+
+            <!-- Overall Progress Bar -->
+            <div class="order-kpi-progress-wrap">
+                <div class="kpi-prog-header">
+                    <span class="kpi-prog-label">📈 Progres Keseluruhan Volume</span>
+                    <span class="kpi-prog-pct">${pctOverall.toFixed(1)}%</span>
+                </div>
+                <div class="kpi-prog-bar">
+                    <div class="kpi-prog-seg"
+                        style="width:${Math.min(100,pctOverall).toFixed(2)}%; background:var(--green); border-radius:10px 0 0 10px;"></div>
+                    <div class="kpi-prog-seg"
+                        style="width:${Math.min(100-pctOverall,pctStokBar).toFixed(2)}%; background:#60a5fa;"></div>
+                </div>
+                <div class="kpi-prog-legend">
+                    <span><div class="kpi-leg-dot" style="background:var(--green);"></div>Terkirim: ${fmtDec(totalVolumeTerkirim,2)} m³</span>
+                    <span><div class="kpi-leg-dot" style="background:#60a5fa;"></div>Stok Siap: ${fmtDec(totalVolumeStok,2)} m³</span>
+                    <span><div class="kpi-leg-dot" style="background:var(--border);"></div>Sisa: ${fmtDec(totalSisaAktif,2)} m³</span>
+                    <span style="margin-left:auto; color:var(--gold); font-weight:700;">Total: ${fmtDec(totalVolumeOrder,2)} m³</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ STATUS ORDER ══ -->
+        <div class="order-section-divider"><span>Status Order</span></div>
+
         <!-- Summary Cards -->
         <div class="order-summary-grid">
             <div class="osc" onclick="setOrderFilter('semua')">
