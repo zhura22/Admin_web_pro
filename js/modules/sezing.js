@@ -559,11 +559,19 @@ function renderBoardStockHistory() {
 // ═══════════════════════════════════════════════════════
 // BOARD STOCK — FORM INPUT
 // ═══════════════════════════════════════════════════════
+// Helper: hanya PO yang belum selesai (terpenuhi < volumeOrder)
+function _getActiveOrders() {
+    return (window.orderList || []).filter(o => {
+        const terpenuhi = window.getOrderTerpenuhi(o.id);
+        return !(o.volumeOrder > 0 && terpenuhi >= o.volumeOrder);
+    });
+}
+
 function initBoardStockForm() {
     const cont = document.getElementById('board-stock-form-container');
     if (!cont || cont.querySelector('#board-stock-order')) return;
 
-    const orderOpts = (window.orderList||[])
+    const orderOpts = _getActiveOrders()
         .map(o => `<option value="${o.id}">${escapeHtml(o.kodePO)} — ${escapeHtml(o.perusahaan)}</option>`)
         .join('');
 
@@ -596,12 +604,12 @@ function initBoardStockForm() {
 function refreshBoardStockOrders() {
     const sel = document.getElementById('board-stock-order');
     if (!sel) return;
-    const old = sel.value;
+    const prev = sel.value;
     sel.innerHTML = '<option value="">-- Pilih PO --</option>' +
-        (window.orderList||[]).map(o =>
+        _getActiveOrders().map(o =>
             `<option value="${o.id}">${escapeHtml(o.kodePO)} — ${escapeHtml(o.perusahaan)}</option>`
         ).join('');
-    if (old) sel.value = old;
+    if (prev) sel.value = prev;
 }
 
 window.saveBoardStock = function () {
