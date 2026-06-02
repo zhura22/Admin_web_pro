@@ -41,7 +41,6 @@ let loginAttempts       = 0;
         body.view-only .btn-primary:not(.safe-btn),
         body.view-only .form-actions .btn-primary,
         body.view-only .subtab-toggle .btn-primary,
-        body.view-only button[onclick*="openSezingForm"],
         body.view-only button[onclick*="openSawmillForm"],
         body.view-only button[onclick*="openOvenInputForm"],
         body.view-only button[onclick*="openProduksiForm"],

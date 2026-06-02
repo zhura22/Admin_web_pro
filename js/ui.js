@@ -48,7 +48,8 @@ window.switchTab = function(name) {
     }
     if (name === "oven") renderOvenStatus();
     if (name === "sezing") {
-        document.getElementById("sezing-tanggal").value = today();
+        const szTgl = document.getElementById("sz-tanggal");
+        if (szTgl && !szTgl.value) szTgl.value = today();
         if (window.renderSezing) window.renderSezing();
     }
     if (name === "penjualan") {
@@ -103,10 +104,9 @@ function activateSubTab(tabName, subtab) {
             window.openProduksiForm();
         }
     }
-    // FIX BUG 5: subtab "+ Input" di Sezing → arahkan ke sezing-list lalu buka modal penuh
+    // sezing-input sekarang adalah subtab langsung dengan form lengkap
     if (subtab === 'sezing-input') {
-        activateSubTab('sezing', 'sezing-list');
-        setTimeout(() => window.openSezingForm?.(), 50);
+        // Tidak perlu redirect — form sudah ada di subtab ini
     }
 }
 

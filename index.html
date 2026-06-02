@@ -258,24 +258,104 @@
             <!-- Sezing & Penjualan - default daftar -->
             <div id="tab-sezing" class="panel hidden">
                 <div class="panel-head">
-                    <div><h2 class="panel-title">📏 Sezing</h2><p class="panel-sub">Hasil Sezing Laminating Board</p></div>
+                    <div><h2 class="panel-title">📏 Sezing</h2><p class="panel-sub">Input, Daftar &amp; Stok Board</p></div>
                     <div class="flex gap10 items-center wrap">
                         <div class="subtab-toggle flex gap4">
-                            <button class="btn btn-secondary subtab-btn" data-subtab="sezing-input">+ Input</button>
-                            <button class="btn btn-primary subtab-btn active" data-subtab="sezing-list">📋 Daftar</button>
+                            <button class="btn subtab-btn" data-subtab="sezing-input">✏️ Input</button>
+                            <button class="btn subtab-btn active" data-subtab="sezing-list">📋 Daftar</button>
+                            <button class="btn subtab-btn" data-subtab="sezing-stok">📦 Stok Board</button>
                         </div>
                     </div>
                 </div>
+
+                <!-- Subtab: Input Sezing -->
                 <div id="sezing-input" class="subtab-panel hidden">
-                    <div class="form-card"><div class="form-title">📐 Hasil Sezing</div><div class="grid2"><div class="field"><label>Tanggal *</label><input type="date" id="sezing-tanggal"></div><div class="field"><label>Volume (m³) *</label><input type="number" step="any" id="sezing-volume" min="0"></div></div><div class="form-actions"><button class="btn btn-primary" onclick="window.saveSezing()">💾 Simpan</button></div></div>
+                    <div class="form-card">
+                        <div class="form-title">📏 Input Hasil Sezing</div>
+                        <div class="grid3">
+                            <div class="field">
+                                <label>Tanggal *</label>
+                                <input type="date" id="sz-tanggal">
+                            </div>
+                            <div class="field">
+                                <label>Open No. / Batch</label>
+                                <select id="sz-openno"><option value="">-- Pilih --</option></select>
+                            </div>
+                            <div class="field">
+                                <label>Ketebalan (mm)</label>
+                                <select id="sz-ketebalan">
+                                    <option value="">-- Pilih --</option>
+                                    <option value="12">12 mm</option>
+                                    <option value="15">15 mm</option>
+                                    <option value="18">18 mm</option>
+                                    <option value="20">20 mm</option>
+                                    <option value="25">25 mm</option>
+                                    <option value="30">30 mm</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Volume (m³) *</label>
+                                <input type="number" step="any" id="sz-volume" placeholder="0.000" oninput="updateSezingPreview()">
+                            </div>
+                            <div class="field">
+                                <label>Jumlah Lembar (pcs)</label>
+                                <input type="number" id="sz-pcs" placeholder="0" oninput="updateSezingPreview()">
+                            </div>
+                            <div class="field">
+                                <label>Jenis Board</label>
+                                <select id="sz-jenis">
+                                    <option value="">-- Pilih --</option>
+                                    <option value="LB">LB</option>
+                                    <option value="FLB">FLB</option>
+                                    <option value="LVL">LVL</option>
+                                    <option value="Core">Core</option>
+                                    <option value="Lainnya">Lainnya</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Shift</label>
+                                <select id="sz-shift">
+                                    <option value="1">Shift 1 🕛</option>
+                                    <option value="2">Shift 2 🌙</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Operator</label>
+                                <input type="text" id="sz-operator" placeholder="Nama operator">
+                            </div>
+                            <div class="field">
+                                <label>Keterangan</label>
+                                <input type="text" id="sz-keterangan" placeholder="Catatan opsional">
+                            </div>
+                        </div>
+                        <div id="sz-preview" style="background:linear-gradient(135deg,rgba(212,160,23,.08),rgba(0,0,0,.08));border:1px solid rgba(212,160,23,.25);border-radius:8px;padding:10px 16px;margin-top:14px;display:none;">
+                            <div style="font-size:9px;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:.9px;margin-bottom:6px;">⚡ Preview Kalkulasi</div>
+                            <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:12px;font-family:var(--font-mono);">
+                                <span>Volume: <b style="color:var(--gold);" id="sz-prev-vol">0.000</b> m³</span>
+                                <span>Lembar: <b style="color:var(--gold);" id="sz-prev-pcs">0</b> pcs</span>
+                                <span>Rata-rata: <b style="color:var(--gold);" id="sz-prev-ratio">—</b></span>
+                            </div>
+                        </div>
+                        <div class="form-actions" style="margin-top:16px;">
+                            <button class="btn btn-secondary" onclick="window.resetSezingForm()">🔄 Reset</button>
+                            <button class="btn btn-primary" onclick="window.saveSezing()">💾 Simpan Sezing</button>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Subtab: Daftar Sezing -->
                 <div id="sezing-list" class="subtab-panel">
+                    <div id="sezing-kpi-bar"></div>
                     <div id="sezing-list-content"></div>
                 </div>
-                <div id="board-stock-form-container" class="form-card" style="margin-bottom: 20px;"></div>
-                <div id="board-stock-latest-container" class="rekap-stats" style="margin-bottom: 20px;"></div>
-                <div id="board-stock-history"></div>
-                <div id="realtime-stock-container" class="rekap-stats" style="margin-bottom: 20px;"></div>
+
+                <!-- Subtab: Stok Board -->
+                <div id="sezing-stok" class="subtab-panel hidden">
+                    <div id="board-stock-form-container" class="form-card" style="margin-bottom:18px;"></div>
+                    <div id="board-stock-latest-container" style="margin-bottom:18px;"></div>
+                    <div id="board-stock-history"></div>
+                    <div id="realtime-stock-container" style="margin-bottom:18px;"></div>
+                </div>
             </div>
 
             <!-- Penjualan -->

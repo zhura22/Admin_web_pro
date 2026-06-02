@@ -2,7 +2,8 @@ function initApp() {
     loadAllData();
     renderAll();
     switchTab("dashboard");
-    document.getElementById("sezing-tanggal").value = today();
+    // sz-tanggal diisi oleh _initSezingInputForm() di sezing.js
+    // document.getElementById("sz-tanggal") diinisialisasi oleh renderSezing()
     document.getElementById("jual-tanggal").value = today();
     document.getElementById("opname-bulan").value = thisMonth();
     window.populateOrderDropdown(null);
