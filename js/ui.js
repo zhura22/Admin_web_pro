@@ -53,8 +53,9 @@ window.switchTab = function(name) {
         if (window.renderSezing) window.renderSezing();
     }
     if (name === "penjualan") {
-        document.getElementById("jual-tanggal").value = today();
-        resetJualForm();
+        const jualTgl = document.getElementById("jual-tanggal");
+        if (jualTgl && !jualTgl.value) jualTgl.value = today();
+        if (typeof window.resetJualForm === 'function') window.resetJualForm();
         if (window.renderPenjualan) window.renderPenjualan();
     }
     if (name === "opname") {
@@ -107,6 +108,11 @@ function activateSubTab(tabName, subtab) {
     // sezing-input sekarang adalah subtab langsung dengan form lengkap
     if (subtab === 'sezing-input') {
         // Tidak perlu redirect — form sudah ada di subtab ini
+        if (typeof window.renderSezing === 'function') window.renderSezing();
+    }
+    // penjualan-analitik: render chart saat subtab dibuka
+    if (subtab === 'penjualan-analitik') {
+        if (typeof window.renderPenjualanAnalitik === 'function') window.renderPenjualanAnalitik();
     }
 }
 

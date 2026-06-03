@@ -479,6 +479,11 @@ body.liquid-glass header { border-bottom-color: var(--header-border); }
     .signin-wrapper { flex-direction: column; max-width: 420px; }
     .signin-brand { border-right: none; border-bottom: 1px solid var(--border); }
     .signin-brand-features { display: none; }
+    /* Penjualan form split: stack on mobile */
+    #penjualan-input > div { grid-template-columns: 1fr !important; }
+    #jual-preview-card { position: static !important; }
+    /* Analitik charts: stack on mobile */
+    #penjualan-analitik-content > div { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 480px) { .summary-row { grid-template-columns: 1fr; } }
 @media print {

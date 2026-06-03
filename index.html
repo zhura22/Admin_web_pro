@@ -361,20 +361,135 @@
             <!-- Penjualan -->
             <div id="tab-penjualan" class="panel hidden">
                 <div class="panel-head">
-                    <div><h2 class="panel-title">💰 Penjualan</h2><p class="panel-sub">Data Penjualan &amp; Pengiriman</p></div>
+                    <div><h2 class="panel-title">💰 Penjualan</h2><p class="panel-sub">Input, Daftar &amp; Analitik Pengiriman</p></div>
                     <div class="flex gap10 items-center wrap">
                         <div class="subtab-toggle flex gap4">
-                            <button class="btn btn-secondary subtab-btn" data-subtab="penjualan-input">+ Input</button>
-                            <button class="btn btn-primary subtab-btn active" data-subtab="penjualan-list">📋 Daftar</button>
+                            <button class="btn subtab-btn" data-subtab="penjualan-input">✏️ Input</button>
+                            <button class="btn subtab-btn active" data-subtab="penjualan-list">📋 Daftar</button>
+                            <button class="btn subtab-btn" data-subtab="penjualan-analitik">📊 Analitik</button>
                         </div>
                     </div>
                 </div>
+
+                <!-- ── Subtab: Input ── -->
                 <div id="penjualan-input" class="subtab-panel hidden">
-                    <div class="form-card"><div class="form-title">💰 Input Penjualan</div><div class="grid3"><div class="field"><label>Tanggal *</label><input type="date" id="jual-tanggal"></div><div class="field"><label>Pcs *</label><input type="number" id="jual-pcs" min="0"></div><div class="field"><label>Volume (m³)*</label><input type="number" step="any" id="jual-volume" min="0"></div><div class="field"><label>No.Truk *</label><input type="text" id="jual-truk"></div><div class="field"><label>Tujuan *</label><input type="text" id="jual-tujuan"></div><div class="field"><label>Order *</label><select id="jual-order"><option value="">-- Pilih --</option></select></div><div class="field"><label>Tebal Produk</label><div id="jual-tebal-info" style="padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--gold);min-height:36px;display:flex;align-items:center;">—</div></div><div class="field"><label>Total Harga *</label><input type="number" id="jual-harga" min="0"></div><div class="field"><label>Retur (m³)</label><input type="number" step="any" id="jual-retur" min="0" value="0"></div></div><div class="form-actions"><button class="btn btn-secondary" onclick="window.resetJualForm()">🔄 Reset</button><button class="btn btn-primary" id="btn-save-penjualan">💾 Simpan</button></div></div>
-                </div>
+                    <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start;">
+
+                        <!-- Kiri: Form Fields -->
+                        <div class="form-card" style="margin-bottom:0;">
+                            <div class="form-title">💰 Input Data Penjualan</div>
+
+                            <!-- Baris 1: Tanggal + PO -->
+                            <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:12px;">
+                                <div class="field">
+                                    <label>Tanggal *</label>
+                                    <input type="date" id="jual-tanggal">
+                                </div>
+                                <div class="field">
+                                    <label>PO / Order *</label>
+                                    <select id="jual-order" onchange="window.updateJualPreview()"><option value="">-- Pilih PO --</option></select>
+                                    <div id="jual-sisa-po" style="font-size:10px;margin-top:4px;font-family:var(--font-mono);"></div>
+                                </div>
+                            </div>
+
+                            <!-- Tebal info (auto-fill dari PO) -->
+                            <div class="field" style="margin-bottom:12px;">
+                                <label>Ketebalan Produk</label>
+                                <div id="jual-tebal-info" style="padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);min-height:36px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">—</div>
+                            </div>
+
+                            <!-- Baris 2: Pcs + Volume + Retur -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+                                <div class="field">
+                                    <label>Jumlah Pcs *</label>
+                                    <input type="number" id="jual-pcs" min="0" placeholder="0" oninput="window.updateJualPreview()">
+                                </div>
+                                <div class="field">
+                                    <label>Volume Bruto (m³) *</label>
+                                    <input type="number" step="any" id="jual-volume" min="0" placeholder="0.000" oninput="window.updateJualPreview()">
+                                </div>
+                                <div class="field">
+                                    <label>Retur (m³)</label>
+                                    <input type="number" step="any" id="jual-retur" min="0" value="0" placeholder="0.000" oninput="window.updateJualPreview()">
+                                </div>
+                            </div>
+
+                            <!-- Baris 3: No.Truk + Tujuan -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                                <div class="field">
+                                    <label>No. Truk *</label>
+                                    <input type="text" id="jual-truk" placeholder="Cth: B 1234 XY">
+                                </div>
+                                <div class="field">
+                                    <label>Tujuan *</label>
+                                    <input type="text" id="jual-tujuan" placeholder="Kota / nama pembeli">
+                                </div>
+                            </div>
+
+                            <!-- Baris 4: Harga -->
+                            <div class="field" style="margin-bottom:16px;">
+                                <label>Total Harga (Rp) *</label>
+                                <input type="number" id="jual-harga" min="0" placeholder="0" oninput="window.updateJualPreview()">
+                                <div id="jual-harga-per-m3" style="font-size:11px;color:var(--gold);margin-top:4px;font-family:var(--font-mono);">—</div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button class="btn btn-secondary" onclick="window.resetJualForm()">🔄 Reset</button>
+                                <button class="btn btn-primary" id="btn-save-penjualan">💾 Simpan Penjualan</button>
+                            </div>
+                        </div>
+
+                        <!-- Kanan: Live Preview Card -->
+                        <div id="jual-preview-card" style="position:sticky;top:16px;background:var(--bg2);border:1px solid rgba(200,160,80,.25);border-radius:12px;overflow:hidden;">
+                            <div style="background:linear-gradient(135deg,rgba(212,160,23,.15),rgba(0,0,0,.2));padding:14px 16px;border-bottom:1px solid rgba(200,160,80,.2);">
+                                <div style="font-size:9px;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">⚡ Live Preview</div>
+                                <div style="font-size:11px;color:var(--muted);">Kalkulasi otomatis</div>
+                            </div>
+                            <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                                <!-- Netto -->
+                                <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid var(--green);">
+                                    <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;">Volume Netto</div>
+                                    <div style="font-size:22px;font-weight:800;font-family:var(--font-mono);color:var(--green);line-height:1;" id="prev-netto">0.000</div>
+                                    <div style="font-size:9px;color:var(--muted);margin-top:2px;">m³</div>
+                                </div>
+                                <!-- Harga/m³ -->
+                                <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid var(--gold);">
+                                    <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;">Harga per m³</div>
+                                    <div style="font-size:17px;font-weight:800;font-family:var(--font-mono);color:var(--gold);line-height:1;" id="prev-hpm3">—</div>
+                                </div>
+                                <!-- Retur info -->
+                                <div id="prev-retur-row" style="display:none;background:rgba(232,80,80,.08);border-radius:8px;padding:9px 12px;border-left:3px solid var(--red);">
+                                    <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px;">Retur</div>
+                                    <div style="font-size:13px;font-weight:700;font-family:var(--font-mono);color:var(--red);" id="prev-retur">0.000 m³</div>
+                                    <div style="font-size:9px;color:var(--muted);" id="prev-retur-pct">—</div>
+                                </div>
+                                <!-- Sisa PO -->
+                                <div id="prev-sisa-row" style="display:none;background:var(--bg3);border-radius:8px;padding:9px 12px;">
+                                    <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px;">Sisa PO Setelah Ini</div>
+                                    <div style="font-size:14px;font-weight:700;font-family:var(--font-mono);" id="prev-sisa-val">—</div>
+                                    <!-- Mini progress -->
+                                    <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:6px;">
+                                        <div id="prev-sisa-bar" style="height:100%;width:0%;border-radius:2px;transition:width .4s;"></div>
+                                    </div>
+                                    <div style="font-size:9px;color:var(--muted);margin-top:3px;" id="prev-sisa-pct">—</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!-- /grid -->
+                </div><!-- /penjualan-input -->
+
+                <!-- ── Subtab: Daftar ── -->
                 <div id="penjualan-list" class="subtab-panel">
+                    <div id="penjualan-kpi-bar"></div>
                     <div id="penjualan-list-content"></div>
                 </div>
+
+                <!-- ── Subtab: Analitik ── -->
+                <div id="penjualan-analitik" class="subtab-panel hidden">
+                    <div id="penjualan-analitik-content"></div>
+                </div>
+
             </div>
 
             <!-- Batch Tracking -->
@@ -420,7 +535,48 @@
             </div>
 
             <!-- Log -->
-            <div id="tab-log" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">📜 Log Aktivitas</h2></div></div><div id="log-list"></div></div>
+            <div id="tab-log" class="panel hidden">
+                <div class="panel-head">
+                    <div><h2 class="panel-title">📜 Log Aktivitas</h2><p class="panel-sub">Riwayat semua aksi pengguna</p></div>
+                    <div class="flex gap10 items-center wrap">
+                        <button class="btn btn-secondary" style="font-size:11px;" onclick="window.clearLog()">🗑️ Hapus Log</button>
+                        <button class="btn btn-secondary" style="font-size:11px;" onclick="window.exportLogCSV()">📥 Export CSV</button>
+                    </div>
+                </div>
+                <!-- Filter bar -->
+                <div id="log-filter-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;">
+                    <input type="text" id="log-search" class="search" placeholder="🔍 Cari user, modul, detail..." style="flex:1;min-width:180px;" oninput="window.renderLog()">
+                    <select id="log-filter-modul" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);padding:7px 10px;border-radius:6px;font-size:11px;" onchange="window.renderLog()">
+                        <option value="">Semua Modul</option>
+                        <option value="Kayu">Kayu</option>
+                        <option value="Sawmill">Sawmill</option>
+                        <option value="Oven">Oven</option>
+                        <option value="Produksi">Produksi</option>
+                        <option value="Sezing">Sezing</option>
+                        <option value="Penjualan">Penjualan</option>
+                        <option value="Order">Order</option>
+                        <option value="Opname">Opname</option>
+                        <option value="Data">Data</option>
+                        <option value="Backup">Backup</option>
+                        <option value="Settings">Settings</option>
+                    </select>
+                    <select id="log-filter-aksi" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);padding:7px 10px;border-radius:6px;font-size:11px;" onchange="window.renderLog()">
+                        <option value="">Semua Aksi</option>
+                        <option value="Simpan">Simpan</option>
+                        <option value="Update">Update</option>
+                        <option value="Hapus">Hapus</option>
+                        <option value="Export">Export</option>
+                        <option value="Backup">Backup</option>
+                        <option value="Restore">Restore</option>
+                        <option value="Reset">Reset</option>
+                    </select>
+                    <input type="date" id="log-filter-from" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);padding:7px 10px;border-radius:6px;font-size:11px;" onchange="window.renderLog()">
+                    <input type="date" id="log-filter-to"   style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);padding:7px 10px;border-radius:6px;font-size:11px;" onchange="window.renderLog()">
+                    <button style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:7px 12px;font-size:11px;cursor:pointer;" onclick="window.resetLogFilter()">↩ Reset</button>
+                </div>
+                <div id="log-kpi-bar"></div>
+                <div id="log-list"></div>
+            </div>
 
             <!-- Settings -->
             <div id="tab-settings" class="panel hidden"><div id="settings-container"></div></div>
