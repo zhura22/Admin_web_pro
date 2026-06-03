@@ -77,6 +77,466 @@ window.getOrderTerpenuhi = function (orderId) {
 };
 
 // ═══════════════════════════════════════════════════════
+// HELPER KPI CARD (lokal)
+// ═══════════════════════════════════════════════════════
+function _kpi(label, value, color, sub) {
+    return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+        <div style="font-size:10px;color:var(--muted);font-weight:600;margin-bottom:6px;">${label}</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--font-mono);color:${color};line-height:1.1;">${value}</div>
+        ${sub?`<div style="font-size:10px;color:var(--muted);margin-top:4px;">${sub}</div>`:''}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// SEZING — INIT FORM INPUT
+// ═══════════════════════════════════════════════════════
+function _initSezingInputForm() {
+    const szTgl = document.getElementById('sz-tanggal');
+    if (szTgl && !szTgl.value) szTgl.value = today();
+
+    const sel = document.getElementById('sz-openno');
+    if (sel) {
+        const openNos = [...new Set((window.sawmillList || []).map(s => s.openNo).filter(Boolean))].sort().reverse();
+        const currentVal = sel.value;
+        sel.innerHTML = '<option value="">-- Pilih --</option>' +
+            openNos.map(n => `<option value="${escapeHtml(n)}"${n===currentVal?' selected':''}>${escapeHtml(n)}</option>`).join('');
+    }
+}
+
+window.updateSezingPreview = function () {
+    const vol  = parseFloat(document.getElementById('sz-volume')?.value) || 0;
+    const pcs  = parseInt(document.getElementById('sz-pcs')?.value) || 0;
+    const prev = document.getElementById('sz-preview');
+    if (!prev) return;
+    if (vol > 0 || pcs > 0) {
+        prev.style.display = 'block';
+        document.getElementById('sz-prev-vol').textContent   = fmtDec(vol, 3);
+        document.getElementById('sz-prev-pcs').textContent   = fmt(pcs);
+        document.getElementById('sz-prev-ratio').textContent = (vol > 0 && pcs > 0)
+            ? fmtDec(vol / pcs * 1000, 2) + ' ltr/lbr' : '—';
+    } else {
+        prev.style.display = 'none';
+    }
+};
+
+window.resetSezingForm = function () {
+    ['sz-tanggal','sz-volume','sz-operator','sz-keterangan'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = id === 'sz-tanggal' ? today() : '';
+    });
+    const pcsEl = document.getElementById('sz-pcs');
+    if (pcsEl) pcsEl.value = '';
+    ['sz-openno','sz-ketebalan','sz-jenis'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.selectedIndex = 0;
+    });
+    const shiftEl = document.getElementById('sz-shift');
+    if (shiftEl) shiftEl.value = '1';
+    sezingEditId = null;
+    const prev = document.getElementById('sz-preview');
+    if (prev) prev.style.display = 'none';
+};
+
+window.saveSezing = function () {
+    const tgl      = document.getElementById('sz-tanggal')?.value;
+    const openNo   = document.getElementById('sz-openno')?.value;
+    const keteb    = document.getElementById('sz-ketebalan')?.value;
+    const vol      = parseFloat(document.getElementById('sz-volume')?.value) || 0;
+    const pcs      = parseInt(document.getElementById('sz-pcs')?.value) || 0;
+    const jenis    = document.getElementById('sz-jenis')?.value;
+    const shift    = document.getElementById('sz-shift')?.value || '1';
+    const operator = document.getElementById('sz-operator')?.value?.trim();
+    const ket      = document.getElementById('sz-keterangan')?.value?.trim();
+
+    if (!tgl) { toast('⚠️ Tanggal wajib diisi!'); return; }
+    if (!vol) { toast('⚠️ Volume wajib diisi!'); return; }
+
+    const item = {
+        id: sezingEditId || uid(),
+        tanggal: tgl, openNo: openNo||'', ketebalan: keteb||'',
+        volume: vol, pcs, jenis: jenis||'', shift,
+        operator: operator||'', keterangan: ket||''
+    };
+
+    if (!window.sezingList) window.sezingList = [];
+    if (sezingEditId) {
+        window.sezingList = window.sezingList.map(s => s.id === sezingEditId ? item : s);
+        logActivity?.('Update', 'Sezing', `${fmtDec(vol,3)} m³ · ${keteb||'—'}mm`);
+        toast('✅ Data sezing diperbarui!');
+    } else {
+        window.sezingList.push(item);
+        logActivity?.('Simpan', 'Sezing', `${fmtDec(vol,3)} m³ · ${keteb||'—'}mm`);
+        toast('✅ Sezing disimpan!');
+    }
+    persistAll();
+    sezingEditId = null;
+    window.resetSezingForm();
+    window.renderSezing?.();
+    document.querySelector('#tab-sezing .subtab-btn[data-subtab="sezing-list"]')?.click();
+};
+
+window.deleteSezing = function (id) {
+    if (!confirmDialog?.('Hapus data sezing ini?')) return;
+    window.sezingList = (window.sezingList||[]).filter(s => s.id !== id);
+    persistAll();
+    window.renderSezing?.();
+    toast('🗑️ Data sezing dihapus');
+};
+
+window.editSezing = function (id) {
+    const item = (window.sezingList||[]).find(s => s.id === id);
+    if (!item) return;
+    _initSezingInputForm();
+    const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val ?? ''; };
+    set('sz-tanggal', item.tanggal); set('sz-openno', item.openNo);
+    set('sz-ketebalan', item.ketebalan); set('sz-volume', item.volume);
+    set('sz-pcs', item.pcs); set('sz-jenis', item.jenis);
+    set('sz-shift', item.shift||'1'); set('sz-operator', item.operator);
+    set('sz-keterangan', item.keterangan);
+    sezingEditId = item.id;
+    window.updateSezingPreview();
+    window.switchTab?.('sezing');
+    setTimeout(() => {
+        document.querySelector('#tab-sezing .subtab-btn[data-subtab="sezing-input"]')?.click();
+        window.scrollTo({ top:0, behavior:'smooth' });
+    }, 50);
+};
+
+// ═══════════════════════════════════════════════════════
+// SEZING — KPI BAR
+// ═══════════════════════════════════════════════════════
+function renderSezingKPI() {
+    const cont = document.getElementById('sezing-kpi-bar');
+    if (!cont) return;
+
+    const list    = window.sezingList || [];
+    const bulan   = thisMonth();
+    const listBln = list.filter(s => s.tanggal?.startsWith(bulan));
+
+    const totVolAll = list.reduce((a,s) => a+(s.volume||0), 0);
+    const totVolBln = listBln.reduce((a,s) => a+(s.volume||0), 0);
+    const totPcsBln = listBln.reduce((a,s) => a+(s.pcs||0), 0);
+    const hariBln   = new Set(listBln.map(s => s.tanggal)).size;
+
+    const perTebal = {};
+    listBln.forEach(s => {
+        const k = s.ketebalan || '—';
+        if (!perTebal[k]) perTebal[k] = 0;
+        perTebal[k] += s.volume || 0;
+    });
+    const tebalEntries = Object.entries(perTebal).sort((a,b) => b[1]-a[1]);
+    const maxTebal     = Math.max(...tebalEntries.map(([,v])=>v), 0.001);
+
+    const tebalBars = tebalEntries.map(([k,v]) => {
+        const col = tebalColor(k);
+        const w   = (v / maxTebal * 100).toFixed(1);
+        return `<div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:50px;font-size:10px;color:${col.text};font-weight:700;">${escapeHtml(k)} mm</span>
+            <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:${w}%;background:${col.border};border-radius:3px;transition:width .5s;"></div>
+            </div>
+            <span style="width:70px;text-align:right;font-family:var(--font-mono);font-size:10px;color:${col.text};">${fmtDec(v,3)} m³</span>
+        </div>`;
+    }).join('');
+
+    cont.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
+        ${_kpi('📏 Vol. Sezing Bulan Ini', fmtDec(totVolBln,3)+' m³', 'var(--gold)', hariBln+' hari aktif')}
+        ${_kpi('📦 Jumlah Lembar', fmt(totPcsBln)+' pcs', 'var(--blue)', 'Bulan ini')}
+        ${_kpi('📊 Kumulatif All-time', fmtDec(totVolAll,3)+' m³', 'var(--green)', list.length+' entri total')}
+        ${_kpi('🏭 Sesi Bulan Ini', listBln.length+' sesi', 'var(--orange)', listBln.length>0&&totVolBln>0 ? fmtDec(totVolBln/listBln.length,3)+' m³/sesi' : '—')}
+    </div>
+    ${tebalBars ? `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">📐 Distribusi Ketebalan — ${_fmtBulan(bulan)}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">${tebalBars}</div>
+    </div>` : ''}`;
+}
+
+// ═══════════════════════════════════════════════════════
+// SEZING — DAFTAR
+// ═══════════════════════════════════════════════════════
+window.renderSezingList = function () {
+    const cont = document.getElementById('sezing-list-content');
+    if (!cont) return;
+
+    const from = document.getElementById('sz-filter-from')?.value  || '';
+    const to   = document.getElementById('sz-filter-to')?.value    || '';
+    const srch = (document.getElementById('sz-filter-search')?.value||'').toLowerCase();
+
+    let list = sortByDateAsc(window.sezingList || []);
+    if (from) list = list.filter(s => s.tanggal >= from);
+    if (to)   list = list.filter(s => s.tanggal <= to);
+    if (srch) list = list.filter(s =>
+        (s.openNo||'').toLowerCase().includes(srch) ||
+        (s.operator||'').toLowerCase().includes(srch) ||
+        (s.ketebalan||'').toLowerCase().includes(srch) ||
+        (s.jenis||'').toLowerCase().includes(srch)
+    );
+
+    if (!list.length) {
+        cont.innerHTML = `
+        <div style="text-align:center;padding:48px 20px;color:var(--muted);">
+            <div style="font-size:36px;margin-bottom:10px;opacity:.35;">📭</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">Belum ada data sezing</div>
+            <div style="font-size:11px;">Ubah filter atau <a href="#" onclick="document.querySelector('#tab-sezing .subtab-btn[data-subtab=sezing-input]').click();return false;" style="color:var(--gold);">catat sezing baru</a></div>
+        </div>`;
+        return;
+    }
+
+    const byDate = {};
+    list.forEach(s => { if (!byDate[s.tanggal]) byDate[s.tanggal]=[]; byDate[s.tanggal].push(s); });
+    const dates    = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
+    const grandVol = list.reduce((a,s)=>a+(s.volume||0), 0);
+    const grandPcs = list.reduce((a,s)=>a+(s.pcs||0), 0);
+
+    let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding:11px 14px;background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span style="width:3px;height:20px;background:var(--gold);border-radius:2px;flex-shrink:0;display:inline-block;"></span>
+            <div>
+                <div style="font-size:13px;font-weight:700;color:var(--text);">📏 Daftar Sezing</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:1px;">${list.length} entri · ${dates.length} hari · ${fmt(grandPcs)} pcs</div>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <div style="text-align:right;">
+                <div style="font-size:15px;font-weight:800;font-family:var(--font-mono);color:var(--gold);line-height:1.1;">${fmtDec(grandVol,3)} m³</div>
+                <div style="font-size:10px;color:var(--muted);">Total volume</div>
+            </div>
+            <button style="display:inline-flex;align-items:center;gap:5px;background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.3);border-radius:7px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;" onclick="window.exportSezingCSV()">📥 Export CSV</button>
+        </div>
+    </div>`;
+
+    dates.forEach(tgl => {
+        const items  = byDate[tgl];
+        const dayVol = items.reduce((a,s)=>a+(s.volume||0), 0);
+        const dayPcs = items.reduce((a,s)=>a+(s.pcs||0), 0);
+
+        const tebalChips = [...new Set(items.map(s=>s.ketebalan).filter(Boolean))].map(k => {
+            const col = tebalColor(k);
+            return `<span style="background:${col.bg};color:${col.text};border:1px solid ${col.border};border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;">${k}mm</span>`;
+        }).join('');
+
+        html += `
+        <div style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:9px 13px;background:var(--bg3);border-bottom:1px solid var(--border);">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span style="font-size:12px;font-weight:700;color:var(--text);">📅 ${fmtDate(tgl)}</span>
+                    <span style="font-size:10px;color:var(--muted);">${items.length} sesi</span>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;">${tebalChips}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">
+                    <div style="text-align:right;"><div style="font-size:10px;color:var(--muted);">${fmt(dayPcs)} pcs</div></div>
+                    <div style="text-align:right;min-width:60px;">
+                        <div style="font-size:16px;font-weight:800;font-family:var(--font-mono);color:var(--gold);line-height:1.1;">${fmtDec(dayVol,3)}</div>
+                        <div style="font-size:9px;color:var(--muted);">m³</div>
+                    </div>
+                </div>
+            </div>
+            <div style="background:var(--bg2);">`;
+
+        items.forEach((s, i) => {
+            const isLast = i === items.length - 1;
+            const col    = tebalColor(s.ketebalan);
+            html += `
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 13px;${!isLast?'border-bottom:1px solid var(--border);':''}">
+                    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:200px;">
+                        <div style="width:3px;height:36px;border-radius:2px;background:${col.border};flex-shrink:0;opacity:.8;"></div>
+                        <div style="flex:1;">
+                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
+                                ${s.ketebalan?`<span style="background:${col.bg};color:${col.text};border:1px solid ${col.border};border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;">${s.ketebalan}mm</span>`:''}
+                                ${s.jenis?`<span style="font-size:10px;font-weight:600;color:var(--text);">${escapeHtml(s.jenis)}</span>`:''}
+                                ${s.openNo?`<span style="font-size:9px;color:var(--muted);font-family:var(--font-mono);">${escapeHtml(s.openNo)}</span>`:''}
+                            </div>
+                            <div style="display:flex;align-items:center;gap:10px;font-size:10px;color:var(--muted);flex-wrap:wrap;">
+                                ${s.operator?`<span>👤 ${escapeHtml(s.operator)}</span>`:''}
+                                <span>Shift ${s.shift||'1'}</span>
+                                ${s.keterangan?`<span>📝 ${escapeHtml(s.keterangan)}</span>`:''}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">
+                        <div style="text-align:right;">
+                            <div style="font-size:16px;font-weight:800;font-family:var(--font-mono);color:${col.text};line-height:1.1;">${fmtDec(s.volume,3)}</div>
+                            <div style="font-size:9px;color:var(--muted);">${fmt(s.pcs)} pcs</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                            <button class="btn btn-edit btn-sm" title="Edit" onclick="window.editSezing('${s.id}')">✏️</button>
+                            <button class="btn btn-del  btn-sm" title="Hapus" onclick="window.deleteSezing('${s.id}')">🗑️</button>
+                        </div>
+                    </div>
+                </div>`;
+        });
+        html += `</div></div>`;
+    });
+
+    cont.innerHTML = html;
+};
+
+// ═══════════════════════════════════════════════════════
+// STOK BOARD — FORM INPUT
+// ═══════════════════════════════════════════════════════
+function initBoardStockForm() {
+    const cont = document.getElementById('board-stock-form-container');
+    if (!cont) return;
+    const orders = window.orderList || [];
+    const orderOptions = orders.map(o =>
+        `<option value="${o.id}">${escapeHtml(o.kodePO||'')} — ${escapeHtml(o.perusahaan||'')}</option>`
+    ).join('');
+    cont.innerHTML = `
+    <div class="form-title">📦 Input Stok Board</div>
+    <div class="grid3">
+        <div class="field"><label>Tanggal *</label><input type="date" id="bs-tanggal" value="${today()}"></div>
+        <div class="field"><label>Order / PO</label>
+            <select id="bs-order"><option value="">-- Pilih PO --</option>${orderOptions}</select>
+        </div>
+        <div class="field"><label>Stok Board (m³) *</label><input type="number" step="any" id="bs-stok" placeholder="0.000"></div>
+        <div class="field"><label>Ketebalan (mm)</label>
+            <select id="bs-ketebalan">
+                <option value="">-- Pilih --</option>
+                <option value="12">12 mm</option><option value="15">15 mm</option>
+                <option value="18">18 mm</option><option value="20">20 mm</option>
+                <option value="25">25 mm</option><option value="30">30 mm</option>
+            </select>
+        </div>
+        <div class="field"><label>Keterangan</label><input type="text" id="bs-keterangan" placeholder="Catatan opsional"></div>
+    </div>
+    <div class="form-actions" style="margin-top:12px;">
+        <button class="btn btn-secondary" onclick="window.resetBoardStockForm()">🔄 Reset</button>
+        <button class="btn btn-primary" onclick="window.saveBoardStock()">💾 Simpan Stok</button>
+    </div>`;
+}
+
+window.saveBoardStock = function () {
+    const tgl  = document.getElementById('bs-tanggal')?.value;
+    const stok = parseFloat(document.getElementById('bs-stok')?.value) || 0;
+    const ordId= document.getElementById('bs-order')?.value;
+    const keteb= document.getElementById('bs-ketebalan')?.value;
+    const ket  = document.getElementById('bs-keterangan')?.value?.trim();
+    if (!tgl)  { toast('⚠️ Tanggal wajib diisi!'); return; }
+    if (!stok) { toast('⚠️ Stok wajib diisi!'); return; }
+    const item = { id:uid(), tanggal:tgl, stok, orderId:ordId||'', ketebalan:keteb||'', keterangan:ket||'' };
+    if (!window.boardStockList) window.boardStockList = [];
+    window.boardStockList.push(item);
+    persistAll();
+    logActivity?.('Simpan', 'StokBoard', `${fmtDec(stok,3)} m³`);
+    toast('✅ Stok board disimpan!');
+    window.resetBoardStockForm();
+    renderBoardStockSummary();
+    renderBoardStockHistory();
+};
+
+window.resetBoardStockForm = function () {
+    const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    setV('bs-tanggal', today()); setV('bs-stok', ''); setV('bs-keterangan', '');
+    ['bs-order','bs-ketebalan'].forEach(id => { const el=document.getElementById(id); if(el) el.selectedIndex=0; });
+};
+
+window.deleteBoardStock = function (id) {
+    if (!confirmDialog?.('Hapus data stok board ini?')) return;
+    window.boardStockList = (window.boardStockList||[]).filter(s => s.id !== id);
+    persistAll();
+    renderBoardStockSummary();
+    renderBoardStockHistory();
+    toast('🗑️ Data stok dihapus');
+};
+
+// ═══════════════════════════════════════════════════════
+// STOK BOARD — SUMMARY & RIWAYAT
+// ═══════════════════════════════════════════════════════
+function renderBoardStockSummary() {
+    const cont = document.getElementById('board-stock-latest-container');
+    if (!cont) return;
+    const stockList = window.boardStockList || [];
+    const orders    = window.orderList || [];
+    const { totPress, totJual, totSezing } = getStokBoardRealtime();
+
+    const latestByOrder = {};
+    stockList.forEach(s => {
+        if (!s.orderId) return;
+        if (!latestByOrder[s.orderId] || s.tanggal > latestByOrder[s.orderId].tanggal)
+            latestByOrder[s.orderId] = s;
+    });
+
+    const rows = orders.filter(o => latestByOrder[o.id]).map(o => {
+        const s = latestByOrder[o.id];
+        const col = tebalColor(s.ketebalan);
+        return `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 13px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:160px;">
+                <div>
+                    <div style="font-size:12px;font-weight:700;font-family:var(--font-mono);color:var(--gold);">${escapeHtml(o.kodePO||'—')}</div>
+                    <div style="font-size:10px;color:var(--muted);">${escapeHtml(o.perusahaan||'')} · ${fmtDate(s.tanggal)}</div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+                ${s.ketebalan?`<span style="background:${col.bg};color:${col.text};border:1px solid ${col.border};border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;">${s.ketebalan}mm</span>`:''}
+                <div style="text-align:right;">
+                    <div style="font-size:16px;font-weight:800;font-family:var(--font-mono);color:var(--blue);">${fmtDec(s.stok,3)}</div>
+                    <div style="font-size:9px;color:var(--muted);">m³</div>
+                </div>
+                <button class="btn btn-del btn-sm" onclick="window.deleteBoardStock('${s.id}')">🗑️</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    cont.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:13px;font-weight:700;color:var(--text);">📦 Stok Board per PO</span>
+            <div style="display:flex;align-items:center;gap:14px;font-size:11px;font-family:var(--font-mono);">
+                <span style="color:var(--muted);">Press: <b style="color:var(--text);">${fmt(totPress)}</b> lbr</span>
+                <span style="color:var(--muted);">Sezing: <b style="color:var(--gold);">${fmtDec(totSezing,2)}</b> m³</span>
+                <span style="color:var(--muted);">Jual: <b style="color:var(--green);">${fmtDec(totJual,2)}</b> m³</span>
+            </div>
+        </div>
+        ${rows || `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px;">Belum ada stok board tercatat per PO</div>`}
+    </div>`;
+}
+
+function renderBoardStockHistory() {
+    const cont = document.getElementById('board-stock-history');
+    if (!cont) return;
+    const list = [...(window.boardStockList||[])].sort((a,b)=>(b.tanggal||'').localeCompare(a.tanggal||''));
+    if (!list.length) {
+        cont.innerHTML = `<div style="text-align:center;padding:32px;color:var(--muted);font-size:12px;">📭 Belum ada riwayat stok board</div>`;
+        return;
+    }
+    const rows = list.map(s => {
+        const order = (window.orderList||[]).find(o => o.id === s.orderId);
+        const col   = tebalColor(s.ketebalan);
+        return `<tr>
+            <td>${fmtDate(s.tanggal)}</td>
+            <td style="font-family:var(--font-mono);color:var(--gold);">${escapeHtml(order?.kodePO||'—')}</td>
+            <td>${escapeHtml(order?.perusahaan||'—')}</td>
+            <td>${s.ketebalan?`<span style="color:${col.text};font-weight:700;">${s.ketebalan}mm</span>`:'—'}</td>
+            <td style="font-family:var(--font-mono);font-weight:700;color:var(--blue);">${fmtDec(s.stok,3)}</td>
+            <td style="color:var(--muted);font-size:11px;">${escapeHtml(s.keterangan||'')}</td>
+            <td><button class="btn btn-del btn-sm" onclick="window.deleteBoardStock('${s.id}')">🗑️</button></td>
+        </tr>`;
+    }).join('');
+    cont.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:14px;">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);">
+            <span style="font-size:13px;font-weight:700;color:var(--text);">📋 Riwayat Input Stok Board</span>
+        </div>
+        <div class="table-wrap">
+            <table><thead><tr><th>Tanggal</th><th>Kode PO</th><th>Pembeli</th><th>Tebal</th><th>Stok (m³)</th><th>Keterangan</th><th>Aksi</th></tr></thead>
+            <tbody>${rows}</tbody></table>
+        </div>
+    </div>`;
+}
+
+function refreshBoardStockOrders() {
+    const sel = document.getElementById('bs-order');
+    if (!sel) return;
+    const orders = window.orderList || [];
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">-- Pilih PO --</option>' +
+        orders.map(o => `<option value="${o.id}"${o.id===currentVal?' selected':''}>${escapeHtml(o.kodePO||'')} — ${escapeHtml(o.perusahaan||'')}</option>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════
 // RENDER UTAMA
 // ═══════════════════════════════════════════════════════
 window.renderSezing = function () {
