@@ -218,6 +218,49 @@ const themes = {
         }
     },
 
+    // ── Neumorphism (Soft UI) — Futuristic Minimal ──
+    neumorph: {
+        name: 'Soft UI',
+        icon: '🌫️',
+        variables: {
+            '--gold':         '#3B82F6',
+            '--gold-light':   '#60A5FA',
+            '--gold-dim':     'rgba(59,130,246,0.12)',
+            '--bg':           '#ECECEC',
+            '--bg2':          '#F2F2F2',
+            '--bg3':          '#E4E4E4',
+            '--bg4':          '#E0E0E0',
+            '--border':       'rgba(0,0,0,0.06)',
+            '--text':         '#333333',
+            '--muted':        '#999999',
+            '--green':        '#10B981',
+            '--green-bg':     'rgba(16,185,129,0.1)',
+            '--red':          '#EF4444',
+            '--red-bg':       'rgba(239,68,68,0.1)',
+            '--blue':         '#3B82F6',
+            '--orange':       '#F59E0B',
+            '--cyan':         '#06B6D4',
+            '--input-bg':     '#ECECEC',
+            '--input-border': 'transparent',
+            '--input-color':  '#333333',
+            '--row-even':     '#F2F2F2',
+            '--td-border':    'rgba(0,0,0,0.04)',
+            '--pill-bg':      '#ECECEC',
+            '--palet-row-bg': '#ECECEC',
+            '--flow-step-bg': '#ECECEC',
+            '--signin-input-bg':     '#ECECEC',
+            '--signin-input-border': 'transparent',
+            '--header-bg':    '#ECECEC',
+            '--header-border': 'rgba(0,0,0,0.06)',
+            '--sidebar-hover-color': '#333333',
+            '--shadow':       '6px 6px 14px rgba(0,0,0,0.15), -6px -6px 14px rgba(255,255,255,0.9)',
+            '--radius':       '24px',
+            '--radius-sm':    '16px',
+            '--glass-blur':   '0px',
+            '--glass-saturate': '100%'
+        }
+    },
+
     // ── Liquid Glass — iOS-inspired frosted glass ──
     liquidGlass: {
         name: 'Liquid Glass',
@@ -305,6 +348,11 @@ const themeBodies = {
         attachment: 'fixed',
         bodyClass: 'noir'
     },
+    neumorph: {
+        bg: '#ECECEC',
+        attachment: '',
+        bodyClass: 'neumorph'
+    },
     liquidGlass: {
         // Soft colourful mesh — makes frosted panels pop
         bg: `
@@ -335,7 +383,7 @@ function applyTheme(themeId) {
     document.body.style.backgroundAttachment = bodyStyle.attachment || '';
 
     // Toggle theme body classes
-    document.body.classList.remove('liquid-glass', 'glass-purple', 'noir');
+    document.body.classList.remove('liquid-glass', 'glass-purple', 'noir', 'neumorph');
     const bodyConf = themeBodies[themeId] || {};
     if (bodyConf.bodyClass) document.body.classList.add(bodyConf.bodyClass);
     if (themeId === 'liquidGlass') document.body.classList.add('liquid-glass');
@@ -362,7 +410,7 @@ function cycleTheme() {
 
 function loadSavedTheme() {
     const saved = localStorage.getItem('app_theme');
-    applyTheme((saved && themes[saved]) ? saved : 'gold');
+    applyTheme((saved && themes[saved]) ? saved : 'neumorph');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
