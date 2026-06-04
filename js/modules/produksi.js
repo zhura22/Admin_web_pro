@@ -37,13 +37,11 @@ window.renderProduksi = function () {
         return;
     }
 
-    const from  = document.getElementById('prod-filter-from')?.value || '';
-    const to    = document.getElementById('prod-filter-to')?.value || '';
+    const bulan = _prodGetCurrentMonthFilter();
     const srch  = (document.getElementById('prod-filter-search')?.value || '').toLowerCase();
 
     let list = sortByDateDesc(window.produksiList);
-    if (from)  list = list.filter(l => l.tanggal >= from);
-    if (to)    list = list.filter(l => l.tanggal <= to);
+    if (bulan !== 'all') list = list.filter(l => l.tanggal?.startsWith(bulan));
     if (srch)  list = list.filter(l => (l.openNo||'').toLowerCase().includes(srch) || (l.keterangan||'').toLowerCase().includes(srch));
 
     if (!list.length) {
@@ -163,6 +161,27 @@ function renderShiftMini(label, s) {
 // ═══════════════════════════════════════════════
 // FILTER PANEL
 // ═══════════════════════════════════════════════
+function _prodGenMonthOptions() {
+    const opts = [];
+    const now  = new Date();
+    const cur  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    opts.push(`<option value="${cur}">Bulan ini (${cur})</option>`);
+    for (let i = 1; i <= 11; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        opts.push(`<option value="${m}">${m}</option>`);
+    }
+    opts.push('<option value="all">Semua Bulan</option>');
+    return opts.join('');
+}
+
+function _prodGetCurrentMonthFilter() {
+    const saved = localStorage.getItem('produksi_filter_month');
+    if (saved) return saved;
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+}
+
 function initProduksiFilterBar() {
     const listEl = document.getElementById('produksi-list');
     if (!listEl || document.getElementById('prod-filter-bar')) return;
@@ -170,22 +189,37 @@ function initProduksiFilterBar() {
     bar.id = 'prod-filter-bar';
     bar.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;';
     bar.innerHTML = `
-        <input class="search" type="text" id="prod-filter-search" placeholder="🔍 Cari batch/keterangan..." style="width:220px;" oninput="window.renderProduksi()">
-        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);">
-            <label>Dari:</label>
-            <input type="date" id="prod-filter-from" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);padding:7px 10px;border-radius:6px;font-size:11px;" onchange="window.renderProduksi()">
-            <label>s/d</label>
-            <input type="date" id="prod-filter-to" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);padding:7px 10px;border-radius:6px;font-size:11px;" onchange="window.renderProduksi()">
-        </div>
+        <select id="prod-filter-bulan" onchange="window.onProdFilterMonthChange(this.value)"
+            style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);
+                   padding:7px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+            ${_prodGenMonthOptions()}
+        </select>
+        <input class="search" type="text" id="prod-filter-search" placeholder="🔍 Cari batch/keterangan..." style="width:200px;" oninput="window.renderProduksi()">
         <button class="btn btn-secondary btn-sm" onclick="window.resetProduksiFilter()">↩ Reset</button>
         <button class="btn btn-sm" style="background:rgba(96,165,250,0.15);color:var(--blue);border-color:rgba(96,165,250,0.3);" onclick="window.exportProduksiCSV()">📥 CSV</button>
     `;
     listEl.insertAdjacentElement('beforebegin', bar);
+    // Set nilai dropdown sesuai saved filter
+    setTimeout(() => {
+        const sel = document.getElementById('prod-filter-bulan');
+        if (sel) {
+            const saved = _prodGetCurrentMonthFilter();
+            if (sel.querySelector(`option[value="${saved}"]`)) sel.value = saved;
+        }
+    }, 0);
 }
 
+window.onProdFilterMonthChange = function(val) {
+    localStorage.setItem('produksi_filter_month', val);
+    window.renderProduksi();
+};
+
 window.resetProduksiFilter = function() {
-    document.getElementById('prod-filter-from') && (document.getElementById('prod-filter-from').value = '');
-    document.getElementById('prod-filter-to') && (document.getElementById('prod-filter-to').value = '');
+    const now = new Date();
+    const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    localStorage.setItem('produksi_filter_month', cur);
+    const sel = document.getElementById('prod-filter-bulan');
+    if (sel && sel.querySelector(`option[value="${cur}"]`)) sel.value = cur;
     document.getElementById('prod-filter-search') && (document.getElementById('prod-filter-search').value = '');
     window.renderProduksi();
 };

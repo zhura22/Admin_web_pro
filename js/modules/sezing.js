@@ -259,13 +259,11 @@ window.renderSezingList = function () {
     const cont = document.getElementById('sezing-list-content');
     if (!cont) return;
 
-    const from = document.getElementById('sz-filter-from')?.value  || '';
-    const to   = document.getElementById('sz-filter-to')?.value    || '';
+    const bulan = localStorage.getItem('sz_filter_month') || (() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; })();
     const srch = (document.getElementById('sz-filter-search')?.value||'').toLowerCase();
 
     let list = sortByDateAsc(window.sezingList || []);
-    if (from) list = list.filter(s => s.tanggal >= from);
-    if (to)   list = list.filter(s => s.tanggal <= to);
+    if (bulan !== 'all') list = list.filter(s => s.tanggal?.startsWith(bulan));
     if (srch) list = list.filter(s =>
         (s.openNo||'').toLowerCase().includes(srch) ||
         (s.operator||'').toLowerCase().includes(srch) ||
@@ -645,13 +643,11 @@ window.renderPenjualanList = function () {
     const cont = document.getElementById('penjualan-list-content');
     if (!cont) return;
 
-    const from = document.getElementById('jual-filter-from')?.value  || '';
-    const to   = document.getElementById('jual-filter-to')?.value    || '';
+    const bulan = localStorage.getItem('jual_filter_month') || (() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; })();
     const srch = (document.getElementById('jual-filter-search')?.value||'').toLowerCase();
 
     let list = sortByDateAsc(window.penjualanList || []);
-    if (from) list = list.filter(p => p.tanggal >= from);
-    if (to)   list = list.filter(p => p.tanggal <= to);
+    if (bulan !== 'all') list = list.filter(p => p.tanggal?.startsWith(bulan));
     if (srch) list = list.filter(p =>
         (p.tujuan||'').toLowerCase().includes(srch) ||
         (p.truk||'').toLowerCase().includes(srch) ||
@@ -1243,37 +1239,100 @@ function _downloadCSV(csv, filename) {
 // ═══════════════════════════════════════════════════════
 // INJECT FILTER BARS & EXTRA CONTAINERS
 // ═══════════════════════════════════════════════════════
+// ─── SHARED HELPER: generate opsi bulan ───────────────────────────────
+function _genMonthOpts() {
+    const opts = [];
+    const now  = new Date();
+    const cur  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    opts.push(`<option value="${cur}">Bulan ini (${cur})</option>`);
+    for (let i = 1; i <= 11; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        opts.push(`<option value="${m}">${m}</option>`);
+    }
+    opts.push('<option value="all">Semua Bulan</option>');
+    return opts.join('');
+}
+
 function _injectFilterBar(listId, barId, searchId, fromId, toId, renderFn, placeholder) {
-    const listEl = document.getElementById(listId);
-    if (!listEl || document.getElementById(barId)) return;
-    const bar = document.createElement('div');
-    bar.id    = barId;
-    bar.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;';
-    bar.innerHTML = `
-        <input class="search" type="text" id="${searchId}" placeholder="🔍 ${placeholder}" style="width:200px;" oninput="${renderFn}">
-        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);">
-            <label>Dari:</label>
-            <input type="date" id="${fromId}" style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);padding:6px 9px;border-radius:6px;font-size:11px;" onchange="${renderFn}">
-            <label>s/d</label>
-            <input type="date" id="${toId}"   style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);padding:6px 9px;border-radius:6px;font-size:11px;" onchange="${renderFn}">
-        </div>
-        <button style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 11px;font-size:11px;cursor:pointer;" onclick="${barId.replace('-bar','')}_reset()">↩ Reset</button>`;
-    listEl.insertAdjacentElement('beforebegin', bar);
+    // Legacy wrapper — tidak dipakai lagi; diganti injectSezingFilterBar / injectJualFilterBar
+    injectSezingFilterBar();
+    injectJualFilterBar();
 }
 
 function injectSezingFilterBar() {
-    _injectFilterBar('sezing-list-content','sz-filter-bar','sz-filter-search','sz-filter-from','sz-filter-to','window.renderSezingList()','Cari Open No. / operator...');
-}
-function injectJualFilterBar() {
-    _injectFilterBar('penjualan-list-content','jual-filter-bar','jual-filter-search','jual-filter-from','jual-filter-to','window.renderPenjualanList()','Cari tujuan / truk / PO...');
+    const listEl = document.getElementById('sezing-list-content');
+    if (!listEl || document.getElementById('sz-filter-bar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'sz-filter-bar';
+    bar.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;';
+    bar.innerHTML = `
+        <select id="sz-filter-bulan" onchange="window.onSzFilterMonthChange(this.value)"
+            style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);
+                   padding:6px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+            ${_genMonthOpts()}
+        </select>
+        <input class="search" type="text" id="sz-filter-search" placeholder="🔍 Cari Open No. / operator..." style="width:200px;" oninput="window.renderSezingList()">
+        <button style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 11px;font-size:11px;cursor:pointer;" onclick="window['sz-filter-bar_reset']()">↩ Reset</button>`;
+    listEl.insertAdjacentElement('beforebegin', bar);
+    setTimeout(() => {
+        const sel = document.getElementById('sz-filter-bulan');
+        if (sel) {
+            const saved = localStorage.getItem('sz_filter_month');
+            if (saved && sel.querySelector(`option[value="${saved}"]`)) sel.value = saved;
+        }
+    }, 0);
 }
 
+function injectJualFilterBar() {
+    const listEl = document.getElementById('penjualan-list-content');
+    if (!listEl || document.getElementById('jual-filter-bar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'jual-filter-bar';
+    bar.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;';
+    bar.innerHTML = `
+        <select id="jual-filter-bulan" onchange="window.onJualFilterMonthChange(this.value)"
+            style="background:var(--input-bg);border:1px solid var(--input-border);color:var(--input-color);
+                   padding:6px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+            ${_genMonthOpts()}
+        </select>
+        <input class="search" type="text" id="jual-filter-search" placeholder="🔍 Cari tujuan / truk / PO..." style="width:200px;" oninput="window.renderPenjualanList()">
+        <button style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 11px;font-size:11px;cursor:pointer;" onclick="window['jual-filter-bar_reset']()">↩ Reset</button>`;
+    listEl.insertAdjacentElement('beforebegin', bar);
+    setTimeout(() => {
+        const sel = document.getElementById('jual-filter-bulan');
+        if (sel) {
+            const saved = localStorage.getItem('jual_filter_month');
+            if (saved && sel.querySelector(`option[value="${saved}"]`)) sel.value = saved;
+        }
+    }, 0);
+}
+
+window.onSzFilterMonthChange = function(val) {
+    localStorage.setItem('sz_filter_month', val);
+    window.renderSezingList();
+};
+window.onJualFilterMonthChange = function(val) {
+    localStorage.setItem('jual_filter_month', val);
+    window.renderPenjualanList();
+};
+
 window['sz-filter-bar_reset'] = function () {
-    ['sz-filter-from','sz-filter-to','sz-filter-search'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+    const now = new Date();
+    const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    localStorage.setItem('sz_filter_month', cur);
+    const sel = document.getElementById('sz-filter-bulan');
+    if (sel && sel.querySelector(`option[value="${cur}"]`)) sel.value = cur;
+    const srch = document.getElementById('sz-filter-search'); if (srch) srch.value = '';
     window.renderSezingList();
 };
 window['jual-filter-bar_reset'] = function () {
-    ['jual-filter-from','jual-filter-to','jual-filter-search'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+    const now = new Date();
+    const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    localStorage.setItem('jual_filter_month', cur);
+    const sel = document.getElementById('jual-filter-bulan');
+    if (sel && sel.querySelector(`option[value="${cur}"]`)) sel.value = cur;
+    const srch = document.getElementById('jual-filter-search'); if (srch) srch.value = '';
     window.renderPenjualanList();
 };
 
