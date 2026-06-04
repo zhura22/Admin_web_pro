@@ -1471,7 +1471,7 @@ window.exportKayuExcel = async function () {
     const nowDate = new Date();
     for (let i = 11; i >= 0; i--) {
         const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
-        trendMonths.push(d.toISOString().slice(0, 7));
+        trendMonths.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
     }
 
     let prevVolTrend = 0;

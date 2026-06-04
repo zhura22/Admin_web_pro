@@ -640,8 +640,9 @@ window.saveSawmill = function() {
     if (!window.ovenList) window.ovenList = [];
 
     const _addHari = (d, hari) => {
-        const dt = new Date(d); dt.setDate(dt.getDate() + hari);
-        return dt.toISOString().split('T')[0];
+        const dt = new Date(d + 'T00:00:00'); dt.setDate(dt.getDate() + hari);
+        const y = dt.getFullYear(), mo = String(dt.getMonth()+1).padStart(2,'0'), dy = String(dt.getDate()).padStart(2,'0');
+        return `${y}-${mo}-${dy}`;
     };
     const DURASI_OVEN = (typeof DURASI_NORMAL_HARI !== 'undefined') ? DURASI_NORMAL_HARI : 7;
 
@@ -730,11 +731,11 @@ function rendCardClass(pct) {
 function generateMonthOptions() {
     const opts = [];
     const now  = new Date();
-    const cur  = now.toISOString().slice(0,7);
+    const cur  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
     opts.push(`<option value="${cur}">Bulan ini (${cur})</option>`);
     for (let i=1; i<=11; i++) {
         const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-        const m = d.toISOString().slice(0,7);
+        const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
         opts.push(`<option value="${m}">${m}</option>`);
     }
     opts.push('<option value="all">Semua Bulan</option>');
@@ -742,12 +743,12 @@ function generateMonthOptions() {
 }
 
 function getFilteredSawmill() {
-    let bulan = localStorage.getItem('sawmill_filter_month') || new Date().toISOString().slice(0,7);
+    let bulan = localStorage.getItem('sawmill_filter_month') || (() => { const _d = new Date(); return `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}`; })();
     if (bulan === 'all') return [...(window.sawmillList||[])];
     return (window.sawmillList||[]).filter(s => s.tanggal && s.tanggal.startsWith(bulan));
 }
 function getCurrentFilter() {
-    return localStorage.getItem('sawmill_filter_month') || new Date().toISOString().slice(0,7);
+    return localStorage.getItem('sawmill_filter_month') || (() => { const _d = new Date(); return `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}`; })();
 }
 
 // ─────────────────────────────────────────────────
@@ -1701,7 +1702,7 @@ window.exportSawmillExcel = async function () {
     const trendMonths = [];
     for (let i=11; i>=0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-        trendMonths.push(d.toISOString().slice(0,7));
+        trendMonths.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
     }
 
     let prevVol = 0;

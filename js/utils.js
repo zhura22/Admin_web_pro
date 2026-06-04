@@ -5,7 +5,13 @@ const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustu
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 const fmt = n => Number(n||0).toLocaleString("id-ID");
 const fmtDec = (n,d=2) => Number(n||0).toFixed(d);
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const t = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${t}`;
+};
 const thisMonth = () => today().slice(0,7);
 
 function fmtDate(d) {
@@ -33,7 +39,7 @@ function getDateRange() {
         akhir = today();
         const d = new Date();
         d.setDate(d.getDate() - 30);
-        awal = d.toISOString().split("T")[0];
+        awal = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         if (document.getElementById("rekap-tgl-awal")) document.getElementById("rekap-tgl-awal").value = awal;
         if (document.getElementById("rekap-tgl-akhir")) document.getElementById("rekap-tgl-akhir").value = akhir;
     }

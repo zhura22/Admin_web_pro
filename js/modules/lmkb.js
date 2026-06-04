@@ -4,11 +4,11 @@
 function generateMonthOptions() {
     const months = [];
     const today = new Date();
-    const thisMonth = today.toISOString().slice(0,7);
+    const thisMonth = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
     months.push(`<option value="${thisMonth}">Bulan ini (${thisMonth})</option>`);
     for (let i = 1; i <= 11; i++) {
         const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-        const monthStr = d.toISOString().slice(0,7);
+        const monthStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
         months.push(`<option value="${monthStr}">${monthStr}</option>`);
     }
     months.push(`<option value="all">Semua Bulan</option>`);
