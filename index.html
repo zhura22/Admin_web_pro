@@ -7,19 +7,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&family=Inter:opsz,wght@14..32,400;14..32,600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="css/style.css">
-    <style>
-        /* Anti-flash: apply neumorph bg immediately before JS loads */
-        html, body {
-            background: #ECECEC !important;
-        }
-    </style>
-    <script>
-        // Force neumorph as default if no theme saved
-        (function() {
-            var saved = localStorage.getItem('app_theme');
-            if (!saved) localStorage.setItem('app_theme', 'neumorph');
-        })();
-    </script>
 </head>
 <body>
 
@@ -87,8 +74,7 @@
                         <input type="month" id="pdf-bulan-picker"
                                style="background:var(--input-bg);color:var(--input-color);
                                       border:1px solid var(--input-border);border-radius:var(--radius-sm);
-                                      padding:5px 10px;font-size:12px;font-family:var(--font-mono);
-                                      box-shadow:var(--shadow, none)">
+                                      padding:5px 10px;font-size:12px;font-family:var(--font-mono);">
                         <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;"
                                 onclick="window.exportTargetPDF(document.getElementById('pdf-bulan-picker').value || undefined)">
                             🖨️ Export PDF Evaluasi
