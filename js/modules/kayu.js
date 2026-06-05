@@ -426,21 +426,12 @@ function generateKayuMonthOptions() {
 // ─────────────────────────────────────────────────
 // RENDER UTAMA
 // ─────────────────────────────────────────────────
-// ─── kyKPI — module-level agar bisa dipakai renderKayu & loadKayuSummary ──
+// ─── kyKPI — pakai .kpi-card class (konsisten dengan modul lain) ──
 function kyKPI(label, value, color, sub) {
-    return `<div style="background:var(--bg2);border:1px solid var(--gold-dim);
-                border-top:3px solid ${color};border-radius:12px;
-                padding:14px 18px;box-shadow:0 3px 12px rgba(0,0,0,.18);
-                position:relative;overflow:hidden;">
-        <div style="position:absolute;top:-12px;right:-12px;width:52px;height:52px;
-                    border-radius:50%;background:${color};opacity:.07;pointer-events:none;"></div>
-        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
-                    letter-spacing:.9px;font-weight:600;">${label}</div>
-        <div style="font-size:21px;font-weight:700;color:${color};
-                    font-family:var(--font-mono);margin-top:6px;line-height:1.1;
-                    letter-spacing:-.5px;">${value}</div>
-        ${sub ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;
-                             padding-top:5px;border-top:1px solid var(--border);">${sub}</div>` : ''}
+    return `<div class="kpi-card" style="--kpi-accent:${color};">
+        <div class="kpi-label">${label}</div>
+        <div class="kpi-value" style="font-size:20px;">${value}</div>
+        ${sub ? `<div class="kpi-sub">${sub}</div>` : ''}
     </div>`;
 }
 
@@ -524,7 +515,7 @@ window.renderKayu = function() {
         // ── KPI Cards ──
     const avgColor = avgM3 > avgPrv*HARGA_WARNING_FACTOR && avgPrv>0 ? 'var(--orange)' : 'var(--green)';
     const kpiHtml = `
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+        <div class="kpi-row" style="margin-bottom:16px;">
             ${kyKPI('Volume (m³)',       fmtDec(volTotal,2),                 'var(--gold)',   trendArrow(volTotal, volPrv) || 'Tidak ada data lalu')}
             ${kyKPI('Total Nilai (Rp)', 'Rp '+fmt(Math.round(hrgTotal/1000))+'k', '#60a5fa', trendArrow(hrgTotal, hrgPrv) || null)}
             ${kyKPI('Avg Harga/m³',     'Rp '+fmt(Math.round(avgM3)),        avgColor,       trendArrow(avgM3, avgPrv) || null)}
@@ -726,7 +717,7 @@ window.loadKayuSummary = function() {
 
     let html = `
         <!-- KPI ringkasan -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+        <div class="kpi-row" style="margin-bottom:16px;">
             ${kyKPI('Volume (m³)',       fmtDec(volTotal,2),                      'var(--gold)',  null)}
             ${kyKPI('Total Nilai (Rp)', 'Rp '+fmt(Math.round(hrgTotal/1000))+'k', '#60a5fa',     null)}
             ${kyKPI('Avg Harga/m³',     'Rp '+fmt(Math.round(avgM3)),             'var(--green)', null)}

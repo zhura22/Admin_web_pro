@@ -246,6 +246,70 @@ header {
 .summary-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-family: var(--font-mono); margin-bottom: 6px; }
 .summary-value { font-size: 18px; font-weight: 700; color: var(--gold); font-family: var(--font-mono); }
 
+/* ── KPI Card dengan aksen warna per metrik ── */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 12px; margin-bottom: 18px; }
+.kpi-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--kpi-accent, var(--gold));
+    border-radius: var(--radius);
+    padding: 13px 16px;
+    position: relative; overflow: hidden;
+    transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.kpi-card::after {
+    content: '';
+    position: absolute; top: 0; right: 0; width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--kpi-accent, var(--gold));
+    opacity: .045;
+    transform: translate(18px,-18px);
+    pointer-events: none;
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,.28); border-color: rgba(255,255,255,.1); }
+.kpi-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.1px; font-family: var(--font-mono); font-weight: 600; margin-bottom: 7px; }
+.kpi-value { font-size: 20px; font-weight: 700; font-family: var(--font-mono); color: var(--kpi-accent, var(--gold)); line-height: 1.1; }
+.kpi-unit { font-size: 10px; font-weight: 400; color: var(--muted); margin-left: 3px; }
+.kpi-sub { font-size: 10px; color: var(--muted); margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border); font-family: var(--font-mono); }
+.kpi-bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,.06); margin-top: 8px; overflow: hidden; }
+.kpi-bar-fill { height: 100%; border-radius: 2px; background: var(--kpi-accent, var(--gold)); opacity: .7; transition: width .4s ease; }
+
+/* ── Compact list row (Ide 03) ── */
+.compact-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 10px; }
+.compact-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; gap: 10px; flex-wrap: wrap;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    transition: background var(--transition);
+}
+.compact-row:last-child { border-bottom: none; }
+.compact-row:hover { background: var(--bg3); }
+.compact-row-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 180px; }
+.compact-accent { width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; min-height: 32px; }
+.compact-date { font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+.compact-main { font-size: 13px; font-weight: 600; color: var(--text); font-family: var(--font-mono); }
+.compact-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
+.compact-tag { font-size: 9px; padding: 1px 7px; border-radius: 10px; font-weight: 700; font-family: var(--font-mono); }
+.compact-row-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.compact-metric { text-align: right; }
+.compact-metric-val { font-size: 15px; font-weight: 700; font-family: var(--font-mono); line-height: 1.1; }
+.compact-metric-unit { font-size: 9px; color: var(--muted); }
+.compact-actions { display: flex; gap: 4px; }
+.compact-list-header {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    padding: 9px 14px; background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1px; font-family: var(--font-mono); font-weight: 600;
+}
+.compact-day-header {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+    padding: 8px 14px; background: var(--bg3); border-bottom: 1px solid var(--border);
+}
+.compact-day-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.compact-day-meta { font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+
 /* ── Tables ── */
 .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }

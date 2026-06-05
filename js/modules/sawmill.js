@@ -787,32 +787,38 @@ window.renderSawmill = function() {
     const countEl = document.getElementById('sawmill-count');
     if (countEl) countEl.textContent = `${allData.length} laporan (filter: ${filtered.length} tampil)`;
 
-    function swKPI(label, value, color, sub) {
-        return `<div style="background:var(--bg2);border:1px solid var(--gold-dim);
-                    border-top:3px solid ${color};border-radius:12px;
-                    padding:14px 18px;box-shadow:0 3px 12px rgba(0,0,0,.18);
-                    position:relative;overflow:hidden;">
-            <div style="position:absolute;top:-12px;right:-12px;width:52px;height:52px;
-                        border-radius:50%;background:${color};opacity:.07;pointer-events:none;"></div>
-            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;
-                        letter-spacing:.9px;font-weight:600;">${label}</div>
-            <div style="font-size:21px;font-weight:700;color:${color};
-                        font-family:var(--font-mono);margin-top:6px;line-height:1.1;
-                        letter-spacing:-.5px;">${value}</div>
-            ${sub ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;
-                                 padding-top:5px;border-top:1px solid var(--border);">${sub}</div>` : ''}
-        </div>`;
-    }
-        // ─────── Build HTML ───────
+    // ─────── Build HTML ───────
     let html = `
         <!-- KPI Cards -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;">
-            ${swKPI('Volume Proses (m³)',    fmtDec(volTotal,2),           'var(--gold)',    null)}
-            ${swKPI('Total Palet (m³)',      fmtDec(paletVol,2),           '#60a5fa',        null)}
-            ${swKPI('Avg Rendemen',          avgRendemen.toFixed(1)+'%',   rendClassColor(avgRendemen), 'Target: 65%')}
-            ${swKPI('Total SAP (lbr)',       fmt(totalSAP),                'var(--green)',   null)}
-            ${swKPI('Produktivitas (m³/org)',fmtDec(prodTK,3),             'var(--orange)',  null)}
-            ${swKPI('Hari Laporan',          filtered.length+'',           'var(--muted)',   null)}
+        <div class="kpi-row" style="margin-bottom:18px;">
+            <div class="kpi-card" style="--kpi-accent:var(--gold);">
+                <div class="kpi-label">Volume Proses</div>
+                <div class="kpi-value">${fmtDec(volTotal,2)}<span class="kpi-unit">m³</span></div>
+                <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(volTotal/50*100,100).toFixed(1)}%;"></div></div>
+            </div>
+            <div class="kpi-card" style="--kpi-accent:#60a5fa;">
+                <div class="kpi-label">Total Palet</div>
+                <div class="kpi-value">${fmtDec(paletVol,2)}<span class="kpi-unit">m³</span></div>
+                <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(paletVol/35*100,100).toFixed(1)}%;"></div></div>
+            </div>
+            <div class="kpi-card" style="--kpi-accent:${rendClassColor(avgRendemen)};">
+                <div class="kpi-label">Avg Rendemen</div>
+                <div class="kpi-value">${avgRendemen.toFixed(1)}<span class="kpi-unit">%</span></div>
+                <div class="kpi-sub">Target: 65%</div>
+                <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(avgRendemen,100).toFixed(1)}%;"></div></div>
+            </div>
+            <div class="kpi-card" style="--kpi-accent:var(--green);">
+                <div class="kpi-label">Total SAP</div>
+                <div class="kpi-value">${fmt(totalSAP)}<span class="kpi-unit">lbr</span></div>
+            </div>
+            <div class="kpi-card" style="--kpi-accent:var(--orange);">
+                <div class="kpi-label">Produktivitas</div>
+                <div class="kpi-value">${fmtDec(prodTK,3)}<span class="kpi-unit">m³/org</span></div>
+            </div>
+            <div class="kpi-card" style="--kpi-accent:#a0aec0;">
+                <div class="kpi-label">Hari Laporan</div>
+                <div class="kpi-value">${filtered.length}<span class="kpi-unit">hari</span></div>
+            </div>
         </div>
 
         <!-- Trend Rendemen Sparkline -->

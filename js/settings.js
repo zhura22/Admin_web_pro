@@ -179,8 +179,9 @@ function renderSettingsForm() {
             <div class="field">
                 <label>Tema</label>
                 <select id="cfg-theme">
-                    <option value="dark"   ${cfg.theme==='dark'  ?'selected':''}>🌑 Dark (Default)</option>
-                    <option value="glass"  ${cfg.theme==='glass' ?'selected':''}>✨ Liquid Glass</option>
+                    ${(window.ThemeRegistry ? ThemeRegistry.all() : []).map(t =>
+                        `<option value="${t.id}" ${cfg.theme === t.id ? 'selected' : ''}>${t.icon || ''} ${t.name}</option>`
+                    ).join('')}
                 </select>
             </div>
             <div class="field">

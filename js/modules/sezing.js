@@ -674,67 +674,63 @@ window.renderPenjualanList = function () {
     const grandHarga = list.reduce((a,p)=>a+(p.harga||0), 0);
     const grandRetur = list.reduce((a,p)=>a+(p.retur||0), 0);
     const grandPcs   = list.reduce((a,p)=>a+(p.pcs||0), 0);
+    const avgHpm3    = grandNetto > 0 ? grandHarga/grandNetto : 0;
 
+    // ── KPI bar ──
     let html = `
-    <!-- Header ringkasan -->
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding:11px 14px;background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <span style="width:3px;height:20px;background:var(--green);border-radius:2px;flex-shrink:0;display:inline-block;"></span>
-            <div>
-                <div style="font-size:13px;font-weight:700;color:var(--text);">💰 Daftar Penjualan</div>
-                <div style="font-size:10px;color:var(--muted);margin-top:1px;">${list.length} transaksi · ${dates.length} hari · ${fmt(grandPcs)} pcs</div>
-            </div>
+    <div class="kpi-row" style="margin-bottom:14px;">
+        <div class="kpi-card" style="--kpi-accent:#a0aec0;">
+            <div class="kpi-label">Transaksi</div>
+            <div class="kpi-value">${list.length}<span class="kpi-unit">kirim</span></div>
+            <div class="kpi-sub">${dates.length} hari aktif</div>
         </div>
-        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-            <div style="text-align:right;">
-                <div style="font-size:15px;font-weight:800;font-family:var(--font-mono);color:var(--green);line-height:1.1;">${fmtDec(grandNetto,2)} m³</div>
-                <div style="font-size:10px;color:var(--muted);">Rp ${fmtRpRekap(grandHarga)}</div>
-            </div>
-            ${grandRetur>0 ? `<div style="text-align:right;"><div style="font-size:12px;font-weight:700;font-family:var(--font-mono);color:var(--red);">↩ ${fmtDec(grandRetur,2)} m³</div><div style="font-size:9px;color:var(--muted);">Total retur</div></div>` : ''}
-            <button style="display:inline-flex;align-items:center;gap:5px;background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.3);border-radius:7px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;" onclick="window.exportPenjualanCSV()">📥 Export CSV</button>
+        <div class="kpi-card" style="--kpi-accent:var(--green);">
+            <div class="kpi-label">Volume Netto</div>
+            <div class="kpi-value">${fmtDec(grandNetto,2)}<span class="kpi-unit">m³</span></div>
+            ${grandRetur>0?`<div class="kpi-sub">↩ retur ${fmtDec(grandRetur,2)} m³</div>`:''}
+        </div>
+        <div class="kpi-card" style="--kpi-accent:var(--gold);">
+            <div class="kpi-label">Total Nilai</div>
+            <div class="kpi-value" style="font-size:15px;">Rp ${fmtRpRekap(grandHarga)}</div>
+            <div class="kpi-sub">${fmtRpRekap(avgHpm3)}/m³</div>
+        </div>
+        <div class="kpi-card" style="--kpi-accent:var(--blue);">
+            <div class="kpi-label">Total Pcs</div>
+            <div class="kpi-value">${fmt(grandPcs)}<span class="kpi-unit">pcs</span></div>
         </div>
     </div>`;
 
     dates.forEach(tgl => {
-        const items      = byDate[tgl];
-        const dayNetto   = items.reduce((s,p)=>s+getPenjualanNetto(p), 0);
-        const dayHarga   = items.reduce((s,p)=>s+(p.harga||0), 0);
-        const dayRetur   = items.reduce((s,p)=>s+(p.retur||0), 0);
-        const dayPcs     = items.reduce((s,p)=>s+(p.pcs||0), 0);
-        const dayHpm3    = dayNetto > 0 ? dayHarga/dayNetto : 0;
+        const items    = byDate[tgl];
+        const dayNetto = items.reduce((s,p)=>s+getPenjualanNetto(p), 0);
+        const dayHarga = items.reduce((s,p)=>s+(p.harga||0), 0);
+        const dayRetur = items.reduce((s,p)=>s+(p.retur||0), 0);
+        const dayPcs   = items.reduce((s,p)=>s+(p.pcs||0), 0);
+        const dayHpm3  = dayNetto > 0 ? dayHarga/dayNetto : 0;
 
-        // PO chips hari ini
         const poSet = [...new Map(items.map(p => {
             const o = (window.orderList||[]).find(ord=>ord.id===p.orderId);
             return [p.orderId, o?.kodePO || '—'];
-        }))].map(([,kode]) => `<span style="background:rgba(212,160,23,.12);color:var(--gold);border:1px solid rgba(212,160,23,.25);border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;font-family:var(--font-mono);">${escapeHtml(kode)}</span>`).join('');
+        }))].map(([,kode]) => `<span class="compact-tag" style="background:rgba(212,160,23,.12);color:var(--gold);border:1px solid rgba(212,160,23,.25);">${escapeHtml(kode)}</span>`).join('');
 
         html += `
-        <div style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
-            <!-- Header hari -->
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:9px 13px;background:var(--bg3);border-bottom:1px solid var(--border);">
+        <div class="compact-list">
+            <div class="compact-day-header">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                    <span style="font-size:12px;font-weight:700;color:var(--text);">📅 ${fmtDate(tgl)}</span>
+                    <span class="compact-day-title">📅 ${fmtDate(tgl)}</span>
                     <span style="font-size:10px;color:var(--muted);">${items.length} pengiriman</span>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px;">${poSet}</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;">${poSet}</div>
                 </div>
-                <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">
+                <div style="display:flex;align-items:center;gap:12px;">
                     <div style="text-align:right;">
-                        <div style="font-size:10px;color:var(--muted);">${fmt(dayPcs)} pcs${dayRetur>0?` &nbsp;↩<span style="color:var(--red);"> ${fmtDec(dayRetur,2)}</span>`:''}</div>
-                        <div style="font-size:9px;color:var(--muted);font-family:var(--font-mono);">Rp ${fmtRpRekap(dayHarga)} · ${fmtRpRekap(dayHpm3)}/m³</div>
+                        <div style="font-size:15px;font-weight:800;font-family:var(--font-mono);color:var(--green);">${fmtDec(dayNetto,3)}<span style="font-size:9px;color:var(--muted);margin-left:3px;">m³</span></div>
+                        <div style="font-size:9px;color:var(--muted);font-family:var(--font-mono);">Rp ${fmtRpRekap(dayHarga)}${dayRetur>0?` · ↩${fmtDec(dayRetur,2)}`:''}</div>
                     </div>
-                    <div style="text-align:right;min-width:60px;">
-                        <div style="font-size:16px;font-weight:800;font-family:var(--font-mono);color:var(--green);line-height:1.1;">${fmtDec(dayNetto,3)}</div>
-                        <div style="font-size:9px;color:var(--muted);">m³ netto</div>
-                    </div>
+                    <button style="background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.3);border-radius:6px;padding:4px 10px;font-size:10px;cursor:pointer;" onclick="window.exportPenjualanCSV()">📥 CSV</button>
                 </div>
-            </div>
-
-            <!-- Baris per transaksi -->
-            <div style="background:var(--bg2);">`;
+            </div>`;
 
         items.forEach((p, i) => {
-            const isLast  = i === items.length - 1;
             const order   = (window.orderList||[]).find(o=>o.id===p.orderId);
             const netto   = getPenjualanNetto(p);
             const hpm3    = netto > 0 ? p.harga/netto : 0;
@@ -744,58 +740,47 @@ window.renderPenjualanList = function () {
                 (order.ketebalanVariants?.length) ? order.ketebalanVariants :
                 order.ketebalanProduk ? [{ketebalan:order.ketebalanProduk}] : []
             ) : [];
-            const tebalHtml = variants.length
-                ? variants.map(v=>{
-                    const col=TEBAL_HEX[v.ketebalan]||'var(--gold)';
-                    return `<span style="background:rgba(0,0,0,.2);color:${col};border:1px solid ${col}44;border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;font-family:var(--font-mono);">${v.ketebalan}mm</span>`;
-                }).join('')
-                : '';
+            const tebalHtml = variants.map(v=>{
+                const col=TEBAL_HEX[v.ketebalan]||'var(--gold)';
+                return `<span class="compact-tag" style="background:rgba(0,0,0,.2);color:${col};border:1px solid ${col}44;">${v.ketebalan}mm</span>`;
+            }).join('');
 
             html += `
-                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 13px;${!isLast?'border-bottom:1px solid var(--border);':''}">
-
-                    <!-- Kiri: PO + truk + tujuan + tebal -->
-                    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:220px;">
-                        <div style="width:3px;height:36px;border-radius:2px;background:var(--green);flex-shrink:0;opacity:.7;"></div>
-                        <div style="flex:1;">
-                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
-                                <span style="font-size:12px;font-weight:700;font-family:var(--font-mono);color:var(--text);">${order?escapeHtml(order.kodePO):'—'}</span>
-                                ${order?.perusahaan?`<span style="font-size:10px;color:var(--muted);">— ${escapeHtml(order.perusahaan)}</span>`:''}
-                                ${tebalHtml}
-                            </div>
-                            <div style="display:flex;align-items:center;gap:10px;font-size:10px;color:var(--muted);flex-wrap:wrap;">
-                                <span>🚛 <b style="color:var(--text);font-family:var(--font-mono);">${escapeHtml(p.truk)}</b></span>
-                                <span>📍 ${escapeHtml(p.tujuan)}</span>
-                                <span>${fmt(p.pcs)} pcs</span>
-                                ${p.retur>0?`<span style="color:var(--red);">↩ retur ${fmtDec(p.retur,3)} m³ (${returPct}%)</span>`:''}
-                            </div>
+            <div class="compact-row">
+                <div class="compact-row-left">
+                    <div class="compact-accent" style="background:var(--green);"></div>
+                    <div>
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                            <span class="compact-main">${order?escapeHtml(order.kodePO):'—'}</span>
+                            ${order?.perusahaan?`<span style="font-size:10px;color:var(--muted);">${escapeHtml(order.perusahaan)}</span>`:''}
+                            ${tebalHtml}
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:3px;font-size:10px;color:var(--muted);flex-wrap:wrap;">
+                            <span>🚛 <b style="color:var(--text);font-family:var(--font-mono);">${escapeHtml(p.truk)}</b></span>
+                            <span>📍 ${escapeHtml(p.tujuan)}</span>
+                            <span>${fmt(p.pcs)} pcs</span>
+                            ${p.retur>0?`<span style="color:var(--red);">↩ ${fmtDec(p.retur,3)} m³ (${returPct}%)</span>`:''}
                         </div>
                     </div>
-
-                    <!-- Kanan: Volume + Harga + Actions -->
-                    <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">
-                        <!-- Volume breakdown -->
-                        <div style="text-align:right;">
-                            ${p.retur>0?`<div style="font-size:10px;color:var(--muted);font-family:var(--font-mono);">Bruto: ${fmtDec(p.volume,3)}</div>`:''}
-                            <div style="font-size:16px;font-weight:800;font-family:var(--font-mono);color:var(--green);line-height:1.1;">${fmtDec(netto,3)}</div>
-                            <div style="font-size:9px;color:var(--muted);">m³ netto</div>
-                        </div>
-                        <!-- Harga -->
-                        <div style="text-align:right;min-width:80px;">
-                            <div style="font-size:13px;font-weight:700;font-family:var(--font-mono);color:var(--gold);">Rp ${fmtRpRekap(p.harga)}</div>
-                            <div style="font-size:9px;color:var(--muted);font-family:var(--font-mono);">${fmtRpRekap(hpm3)}/m³</div>
-                        </div>
-                        <!-- Aksi -->
-                        <div style="display:flex;flex-direction:column;gap:3px;">
-                            <button class="btn btn-edit btn-sm" title="Edit" onclick="window.editPenjualan('${p.id}')">✏️</button>
-                            <button class="btn btn-del  btn-sm" title="Hapus" onclick="window.deletePenjualan('${p.id}')">🗑️</button>
-                        </div>
+                </div>
+                <div class="compact-row-right">
+                    <div class="compact-metric">
+                        <div class="compact-metric-val" style="color:var(--green);">${fmtDec(netto,3)}</div>
+                        <div class="compact-metric-unit">m³ netto</div>
                     </div>
-
-                </div>`;
+                    <div class="compact-metric">
+                        <div class="compact-metric-val" style="color:var(--gold);font-size:12px;">Rp ${fmtRpRekap(p.harga)}</div>
+                        <div class="compact-metric-unit">${fmtRpRekap(hpm3)}/m³</div>
+                    </div>
+                    <div class="compact-actions">
+                        <button class="btn btn-edit btn-sm" onclick="window.editPenjualan('${p.id}')">✏️</button>
+                        <button class="btn btn-del btn-sm" onclick="window.deletePenjualan('${p.id}')">🗑️</button>
+                    </div>
+                </div>
+            </div>`;
         });
 
-        html += `</div></div>`;
+        html += `</div>`;
     });
 
     cont.innerHTML = html;

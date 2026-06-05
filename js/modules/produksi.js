@@ -63,11 +63,41 @@ window.renderProduksi = function () {
     const efColor = efTotal >= 80 ? 'var(--green)' : efTotal >= 60 ? 'var(--orange)' : 'var(--red)';
 
     const summaryBar = `
-    <div class="summary-row" style="margin-bottom:16px;">
-        <div class="summary-card"><div class="summary-label">Total Laporan (Filter)</div><div class="summary-value">${list.length}</div></div>
-        <div class="summary-card"><div class="summary-label">Total Planer Bagus</div><div class="summary-value">${fmtDec(totPlanerBagus,2)} <span style="font-size:11px;color:var(--muted)">m³</span></div></div>
-        <div class="summary-card"><div class="summary-label">Total Press</div><div class="summary-value">${fmt(totPress)} <span style="font-size:11px;color:var(--muted)">lbr</span></div></div>
-        <div class="summary-card"><div class="summary-label">Efisiensi Ripsaw</div><div class="summary-value" style="color:${efColor}">${efTotal}%</div>${miniBar(parseFloat(efTotal), 100, efColor)}</div>
+    <div class="kpi-row" style="margin-bottom:16px;">
+        <div class="kpi-card" style="--kpi-accent:#a0aec0;">
+            <div class="kpi-label">Total Laporan</div>
+            <div class="kpi-value">${list.length}<span class="kpi-unit">hari</span></div>
+        </div>
+        <div class="kpi-card" style="--kpi-accent:var(--gold);">
+            <div class="kpi-label">Planer Bagus</div>
+            <div class="kpi-value">${fmtDec(totPlanerBagus,2)}<span class="kpi-unit">m³</span></div>
+            <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(totPlanerBagus/15*100,100).toFixed(1)}%;"></div></div>
+        </div>
+        <div class="kpi-card" style="--kpi-accent:var(--blue);">
+            <div class="kpi-label">Total Press</div>
+            <div class="kpi-value">${fmt(totPress)}<span class="kpi-unit">lbr</span></div>
+            <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(totPress/2000*100,100).toFixed(1)}%;"></div></div>
+        </div>
+        <div class="kpi-card" style="--kpi-accent:${efColor};">
+            <div class="kpi-label">Efisiensi Ripsaw</div>
+            <div class="kpi-value">${efTotal}<span class="kpi-unit">%</span></div>
+            <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(parseFloat(efTotal),100).toFixed(1)}%;"></div></div>
+        </div>
+        <div class="kpi-card" style="--kpi-accent:var(--red);">
+            <div class="kpi-label">Reject</div>
+            <div class="kpi-value">${fmt(totReject)}<span class="kpi-unit">pcs</span></div>
+        </div>
+        <div class="kpi-card" style="--kpi-accent:#f59e0b;">
+            <div class="kpi-label">Limbah</div>
+            <div class="kpi-value">${fmtDec(totLimbah,2)}<span class="kpi-unit">m³</span></div>
+        </div>
+    </div>`;
+
+    // ── Compact list: header ──
+    const listHeader = `
+    <div class="compact-list-header">
+        <span>${list.length} laporan · bulan ini</span>
+        <span>Planer | Press | Ef.Ripsaw | Kehadiran</span>
     </div>`;
 
     const cards = list.map(l => {
@@ -80,64 +110,56 @@ window.renderProduksi = function () {
         const totalMasuk  = (s1.masuk||0)+(s2.masuk||0);
         const totalTidak  = (s1.tidakMasuk||0)+(s2.tidakMasuk||0);
         const { efRipsaw, pressPerSeri } = getProdEfisiensi(l);
-        const efCol   = efRipsaw >= 80 ? 'var(--green)' : efRipsaw >= 60 ? 'var(--orange)' : 'var(--red)';
-        const absensi = (totalMasuk + totalTidak) > 0 ? ((totalMasuk/(totalMasuk+totalTidak))*100).toFixed(0) : 100;
-        const absFmt  = `${absensi}%`;
+        const efCol  = efRipsaw >= 80 ? 'var(--green)' : efRipsaw >= 60 ? 'var(--orange)' : 'var(--red)';
+        const absensi = (totalMasuk+totalTidak)>0 ? ((totalMasuk/(totalMasuk+totalTidak))*100).toFixed(0) : 100;
         const absCol  = absensi >= 90 ? 'var(--green)' : absensi >= 75 ? 'var(--orange)' : 'var(--red)';
-        const sumberInfo = (l.asalPalet && l.asalPalet.length > 0)
-            ? l.asalPalet.map(p => `<span style="background:var(--gold-dim);color:var(--gold);padding:2px 8px;border-radius:12px;font-size:10px;">Open ${p.openNo}: ${p.jumlahPalet} plt · ${fmtDec(p.volume,2)} m³</span>`).join(' ')
-            : '<span style="color:var(--muted);font-size:10px;">—</span>';
+        const sumberTags = (l.asalPalet&&l.asalPalet.length>0)
+            ? l.asalPalet.map(p=>`<span class="compact-tag" style="background:var(--gold-dim);color:var(--gold);">Open ${p.openNo}</span>`).join('')
+            : '';
+        const extraPills = [
+            planerMis ? `<span class="compact-tag" style="background:rgba(255,255,255,.05);color:var(--muted);">Mis: ${planerMis}</span>` : '',
+            seri      ? `<span class="compact-tag" style="background:rgba(255,255,255,.05);color:var(--muted);">Seri: ${fmt(seri)}</span>` : '',
+            l.reject  ? `<span class="compact-tag" style="background:rgba(248,113,113,.12);color:var(--red);">❌ ${l.reject} pcs</span>` : '',
+            l.limbah  ? `<span class="compact-tag" style="background:rgba(245,158,11,.1);color:#f59e0b;">♻️ ${fmtDec(l.limbah,2)} m³</span>` : '',
+            l.keterangan ? `<span class="compact-tag" style="background:rgba(255,255,255,.05);color:var(--muted);">📝 ${l.keterangan}</span>` : '',
+        ].filter(Boolean).join('');
 
         return `
-        <div class="laporan-card" style="border-left:3px solid var(--gold);">
-            <div class="laporan-head" style="margin-bottom:12px;">
+        <div class="compact-row">
+            <div class="compact-row-left">
+                <div class="compact-accent" style="background:var(--gold);"></div>
                 <div>
-                    <div class="laporan-title">📅 ${fmtDate(l.tanggal)} &nbsp;·&nbsp; <span style="color:var(--gold-light)">${l.openNo || 'Tanpa Batch'}</span></div>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">${sumberInfo}</div>
+                    <div class="compact-date">${fmtDate(l.tanggal)}</div>
+                    <div class="compact-main">${l.openNo||'Tanpa Batch'}</div>
+                    <div class="compact-tags">${sumberTags}${extraPills}</div>
                 </div>
-                <div class="flex gap4">
-                    <button class="btn btn-edit btn-sm" onclick="editProduksi('${l.id}')">✏️ Edit</button>
+            </div>
+            <div class="compact-row-right">
+                <div class="compact-metric">
+                    <div class="compact-metric-val" style="color:var(--gold);">${fmtDec(planerBagus,2)}</div>
+                    <div class="compact-metric-unit">m³ planer</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-val" style="color:var(--blue);">${fmt(press)}</div>
+                    <div class="compact-metric-unit">lbr press</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-val" style="color:${efCol};">${efRipsaw.toFixed(1)}%</div>
+                    <div class="compact-metric-unit">ef. ripsaw</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-val" style="color:${absCol};">${absensi}%</div>
+                    <div class="compact-metric-unit">${totalMasuk}/${totalMasuk+totalTidak} hadir</div>
+                </div>
+                <div class="compact-actions">
+                    <button class="btn btn-edit btn-sm" onclick="editProduksi('${l.id}')">✏️</button>
                     <button class="btn btn-del btn-sm" onclick="deleteProduksi('${l.id}')">🗑️</button>
                 </div>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
-                <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
-                    <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Planer Bagus</div>
-                    <div style="font-size:18px;font-weight:700;color:var(--gold);font-family:var(--font-mono);">${fmtDec(planerBagus,2)} <span style="font-size:10px">m³</span></div>
-                    ${miniBar(planerBagus, 5, 'var(--gold)')}
-                </div>
-                <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
-                    <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Press (Hasil)</div>
-                    <div style="font-size:18px;font-weight:700;color:var(--blue);font-family:var(--font-mono);">${fmt(press)} <span style="font-size:10px">lbr</span></div>
-                    ${miniBar(press, 2000, 'var(--blue)')}
-                </div>
-                <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
-                    <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Efisiensi Ripsaw</div>
-                    <div style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:${efCol}">${efRipsaw.toFixed(1)}%</div>
-                    ${miniBar(efRipsaw, 100, efCol)}
-                </div>
-                <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
-                    <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Kehadiran</div>
-                    <div style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:${absCol};">${absFmt}</div>
-                    <div style="font-size:10px;color:var(--muted);">Masuk: ${totalMasuk} / ${totalMasuk+totalTidak} orang</div>
-                </div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-                ${renderShiftMini('Shift 1 🕛', s1)}
-                ${renderShiftMini('Shift 2 🌙', s2)}
-            </div>
-            <div class="stat-pills" style="padding-top:8px;border-top:1px solid var(--border);">
-                ${l.limbah ? `<div class="stat-pill"><span class="stat-label">♻️ Limbah</span>&nbsp;<span class="stat-val">${fmtDec(l.limbah,2)} m³</span></div>` : ''}
-                ${l.reject ? `<div class="stat-pill" style="border-color:rgba(248,113,113,0.3)"><span class="stat-label">❌ Reject</span>&nbsp;<span class="stat-val" style="color:var(--red)">${l.reject} pcs</span></div>` : ''}
-                <div class="stat-pill"><span class="stat-label">Mis</span>&nbsp;<span class="stat-val">${planerMis} sap</span></div>
-                <div class="stat-pill"><span class="stat-label">Seri</span>&nbsp;<span class="stat-val">${fmt(seri)} lbr</span></div>
-                <div class="stat-pill"><span class="stat-label">Press/Seri</span>&nbsp;<span class="stat-val">${pressPerSeri}</span></div>
-                ${l.keterangan ? `<div class="stat-pill"><span class="stat-label">📝</span>&nbsp;<span style="color:var(--muted)">${l.keterangan}</span></div>` : ''}
             </div>
         </div>`;
     }).join('');
 
-    container.innerHTML = summaryBar + cards;
+    container.innerHTML = summaryBar + `<div class="compact-list">${listHeader}${cards}</div>`;
 };
 
 function renderShiftMini(label, s) {
