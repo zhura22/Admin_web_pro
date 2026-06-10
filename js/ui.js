@@ -93,6 +93,12 @@ function activateSubTab(tabName, subtab) {
         btn.classList.toggle('btn-secondary', btn.dataset.subtab !== subtab);
     });
 
+    if (subtab === 'order-input') {
+        if (typeof window.openOrderForm === 'function') {
+            window.openOrderForm(); // inisialisasi form variants & extra fields
+        }
+    }
+
     if (subtab === 'sawmill-input') {
         const container = document.getElementById('sawmill-form-container');
         if (container && container.innerHTML.trim() === '' && typeof window.openSawmillForm === 'function') {
