@@ -283,15 +283,7 @@
                             </div>
                             <div class="field">
                                 <label>Ketebalan (mm)</label>
-                                <select id="sz-ketebalan">
-                                    <option value="">-- Pilih --</option>
-                                    <option value="12">12 mm</option>
-                                    <option value="15">15 mm</option>
-                                    <option value="18">18 mm</option>
-                                    <option value="20">20 mm</option>
-                                    <option value="25">25 mm</option>
-                                    <option value="30">30 mm</option>
-                                </select>
+                                <input type="number" id="sz-ketebalan" placeholder="cth: 15" min="1" step="1" style="width:100%;">
                             </div>
                             <div class="field">
                                 <label>Volume (m³) *</label>
@@ -392,10 +384,10 @@
                                 </div>
                             </div>
 
-                            <!-- Tebal info (auto-fill dari PO) -->
+                            <!-- Tebal info (manual input) -->
                             <div class="field" style="margin-bottom:12px;">
-                                <label>Ketebalan Produk</label>
-                                <div id="jual-tebal-info" style="padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);min-height:36px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">—</div>
+                                <label>Ketebalan Produk (mm)</label>
+                                <input type="number" id="jual-tebal-info" placeholder="cth: 15" min="1" step="1" oninput="window.updateJualPreview()" style="width:100%;">
                             </div>
 
                             <!-- Baris 2: Pcs + Volume + Retur -->
