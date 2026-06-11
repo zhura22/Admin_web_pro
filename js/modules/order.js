@@ -1039,19 +1039,16 @@ function addVariantRow(vr = { ketebalan: '', volume: '' }, idx = null) {
     const tbody = document.getElementById('ov-tbody');
     if (!tbody) return;
     const id = Date.now() + Math.random();
-    const opts = TEBAL_OPTIONS.map(v =>
-        `<option value="${v}"${vr.ketebalan == v ? ' selected' : ''}>${v} mm</option>`
-    ).join('');
     const tr = document.createElement('tr');
     tr.className = 'ov-row';
     tr.style.cssText = 'background:transparent;';
     tr.innerHTML = `
         <td style="padding:5px 8px;">
-            <select class="ov-ket" style="background:var(--input-bg);border:1px solid var(--border);
+            <input type="number" class="ov-ket" min="1" step="1"
+                value="${vr.ketebalan || ''}" placeholder="cth: 15"
+                style="background:var(--input-bg);border:1px solid var(--border);
                 color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px;
-                font-family:var(--font-mono);width:100%;cursor:pointer;">
-                <option value="">-- Tebal --</option>${opts}
-            </select>
+                font-family:var(--font-mono);width:100%;">
         </td>
         <td style="padding:5px 8px;">
             <input type="number" step="any" min="0" class="ov-vol"

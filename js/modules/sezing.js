@@ -126,9 +126,10 @@ window.resetSezingForm = function () {
     });
     const pcsEl = document.getElementById('sz-pcs');
     if (pcsEl) pcsEl.value = '';
-    ['sz-openno','sz-ketebalan','sz-jenis'].forEach(id => {
+    ['sz-openno','sz-jenis'].forEach(id => {
         const el = document.getElementById(id); if (el) el.selectedIndex = 0;
     });
+    const szKet = document.getElementById('sz-ketebalan'); if (szKet) szKet.value = '';
     const shiftEl = document.getElementById('sz-shift');
     if (shiftEl) shiftEl.value = '1';
     sezingEditId = null;
@@ -390,12 +391,7 @@ function initBoardStockForm() {
         </div>
         <div class="field"><label>Stok Board (m³) *</label><input type="number" step="any" id="bs-stok" placeholder="0.000"></div>
         <div class="field"><label>Ketebalan (mm)</label>
-            <select id="bs-ketebalan">
-                <option value="">-- Pilih --</option>
-                <option value="12">12 mm</option><option value="15">15 mm</option>
-                <option value="18">18 mm</option><option value="20">20 mm</option>
-                <option value="25">25 mm</option><option value="30">30 mm</option>
-            </select>
+            <input type="number" id="bs-ketebalan" placeholder="cth: 15" min="1" step="1">
         </div>
         <div class="field"><label>Keterangan</label><input type="text" id="bs-keterangan" placeholder="Catatan opsional"></div>
     </div>
@@ -427,7 +423,8 @@ window.saveBoardStock = function () {
 window.resetBoardStockForm = function () {
     const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
     setV('bs-tanggal', today()); setV('bs-stok', ''); setV('bs-keterangan', '');
-    ['bs-order','bs-ketebalan'].forEach(id => { const el=document.getElementById(id); if(el) el.selectedIndex=0; });
+    ['bs-order'].forEach(id => { const el=document.getElementById(id); if(el) el.selectedIndex=0; });
+    const bsKet = document.getElementById('bs-ketebalan'); if (bsKet) bsKet.value = '';
 };
 
 window.deleteBoardStock = function (id) {
@@ -1008,26 +1005,7 @@ window.updateJualPreview = function () {
         }
     }
 
-    // Tebal info
-    const orderId = document.getElementById('jual-order')?.value;
-    const tiEl    = document.getElementById('jual-tebal-info');
-    if (tiEl) {
-        const selOrder = (window.orderList||[]).find(o=>o.id===orderId);
-        if (selOrder) {
-            const variants = (selOrder.ketebalanVariants?.length) ? selOrder.ketebalanVariants
-                : selOrder.ketebalanProduk ? [{ketebalan:selOrder.ketebalanProduk, volume:selOrder.volumeOrder}] : [];
-            if (variants.length) {
-                tiEl.innerHTML = variants.map(v => {
-                    const col = TEBAL_HEX[v.ketebalan]||'var(--gold)';
-                    return `<span style="background:rgba(0,0,0,.2);color:${col};border:1px solid ${col}44;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;font-family:var(--font-mono);">${v.ketebalan}mm${v.volume?' · '+fmtDec(v.volume,2)+' m³':''}</span>`;
-                }).join('');
-            } else {
-                tiEl.innerHTML = `<span style="color:var(--muted);font-size:10px;">Tidak diatur</span>`;
-            }
-        } else {
-            tiEl.innerHTML = '—';
-        }
-    }
+    // Tebal: sekarang input manual, tidak perlu auto-fill dari PO
 
     // Sisa PO preview
     const sisaRow = document.getElementById('prev-sisa-row');
@@ -1091,7 +1069,7 @@ window.resetJualForm = function () {
     });
     const tgl = document.getElementById('jual-tanggal'); if (tgl) tgl.value = today();
     const ret = document.getElementById('jual-retur');   if (ret) ret.value = '0';
-    const ti  = document.getElementById('jual-tebal-info'); if (ti) { ti.innerHTML='—'; }
+    const ti  = document.getElementById('jual-tebal-info'); if (ti) { ti.value=''; }
     // Reset preview
     const pn = document.getElementById('prev-netto'); if (pn) pn.textContent='0.000';
     const ph = document.getElementById('prev-hpm3');  if (ph) ph.textContent='—';
@@ -1110,6 +1088,7 @@ window.fillJualForm = function (item) {
     set('jual-tujuan',  item.tujuan);
     set('jual-harga',   item.harga);
     set('jual-retur',   item.retur || 0);
+    set('jual-tebal-info', item.ketebalan || '');
     penjualanEditId = item.id;
     populateOrderDropdown(item.orderId||null);
     updateJualPreview();
@@ -1127,6 +1106,7 @@ window.savePenjualan = function () {
     const harga  = parseFloat(document.getElementById('jual-harga')?.value) || 0;
     const orderId= document.getElementById('jual-order')?.value;
     const retur  = parseFloat(document.getElementById('jual-retur')?.value) || 0;
+    const ketebalan = document.getElementById('jual-tebal-info')?.value?.trim() || '';
 
     if (!tgl)    { toast('⚠️ Tanggal wajib diisi!'); return; }
     if (!pcs)    { toast('⚠️ Jumlah pcs wajib diisi!'); return; }
@@ -1145,7 +1125,7 @@ window.savePenjualan = function () {
         if (netto>sisa && !confirmDialog(`⚠️ Volume netto (${fmtDec(netto,2)} m³) melebihi sisa order (${fmtDec(sisa,2)} m³). Tetap simpan?`)) return;
     }
 
-    const item = { id:penjualanEditId||uid(), tanggal:tgl, pcs:parseInt(pcs)||0, volume:vol, truk, tujuan, harga, orderId, retur };
+    const item = { id:penjualanEditId||uid(), tanggal:tgl, pcs:parseInt(pcs)||0, volume:vol, truk, tujuan, harga, orderId, retur, ketebalan };
     if (!window.penjualanList) window.penjualanList = [];
 
     if (penjualanEditId) {
