@@ -17,19 +17,45 @@ window.getOrderTerpenuhi = function(orderId) {
         .reduce((s, p) => s + ((parseFloat(p.volume) || 0) - (parseFloat(p.retur) || 0)), 0);
 };
 
-// Ambil stok board terbaru untuk suatu orderId
-function getLatestStockByOrderId(orderId) {
+// Ambil stok board per ketebalan (terbaru per ketebalan) untuk suatu orderId
+// Returns: { total: number, perKetebalan: { '15': number, '18': number, ... } }
+function getStockByOrderId(orderId) {
     const stocks = (window.boardStockList || []).filter(s => s.orderId === orderId);
-    if (!stocks.length) return 0;
-    return [...stocks].sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''))[0].stok || 0;
+    if (!stocks.length) return { total: 0, perKetebalan: {} };
+
+    // Untuk setiap ketebalan, ambil entri terbaru
+    const byKetebalan = {};
+    stocks.forEach(s => {
+        const k = s.ketebalan || '';
+        if (!byKetebalan[k] || s.tanggal > byKetebalan[k].tanggal) {
+            byKetebalan[k] = s;
+        }
+    });
+
+    const perKetebalan = {};
+    let total = 0;
+    Object.values(byKetebalan).forEach(s => {
+        const k = s.ketebalan || '';
+        perKetebalan[k] = (perKetebalan[k] || 0) + (s.stok || 0);
+        total += s.stok || 0;
+    });
+
+    return { total, perKetebalan };
+}
+
+// Legacy wrapper — tetap bisa dipakai kode lain yang cuma butuh total
+function getLatestStockByOrderId(orderId) {
+    return getStockByOrderId(orderId).total;
 }
 
 // ─────────────────────────────────────────────
 // HELPER: Tentukan status order
 // ─────────────────────────────────────────────
 function getOrderStatus(order) {
-    const terkirim = window.getOrderTerpenuhi(order.id);
-    const stokBoard = getLatestStockByOrderId(order.id);
+    const terkirim  = window.getOrderTerpenuhi(order.id);
+    const stockInfo = getStockByOrderId(order.id);
+    const stokBoard = stockInfo.total;
+    const stokPerKetebalan = stockInfo.perKetebalan;
     // sisa = volume yang BELUM terkirim (stokBoard tidak mengurangi sisa pengiriman)
     const sisa = Math.max(0, order.volumeOrder - terkirim);
     const persen = order.volumeOrder > 0 ? (terkirim / order.volumeOrder) * 100 : 0;
@@ -51,7 +77,7 @@ function getOrderStatus(order) {
         status = 'Pending'; statusClass = 'os-pending'; statusIcon = '⚪';
     }
 
-    return { terkirim, stokBoard, sisa, persen, status, statusClass, statusIcon, terlambat, mendesak };
+    return { terkirim, stokBoard, stokPerKetebalan, sisa, persen, status, statusClass, statusIcon, terlambat, mendesak };
 }
 
 function diffDaysOrder(d1, d2) {
@@ -744,7 +770,7 @@ window.renderOrder = function() {
                 <tbody>
         `;
 
-        currentData.forEach(({ o, terkirim, sisa, persen, status, statusClass, statusIcon, terlambat, mendesak, stokBoard }) => {
+        currentData.forEach(({ o, terkirim, sisa, persen, status, statusClass, statusIcon, terlambat, mendesak, stokBoard, stokPerKetebalan }) => {
             const rowClass = terlambat ? 'row-terlambat' : (mendesak ? 'row-mendesak' : '');
             const progressColor = sisa <= 0 ? '#22c55e' : (terlambat ? '#f87171' : (mendesak ? '#f97316' : '#d4a017'));
             const sisaClass = sisa <= 0 ? 'sisa-ok' : (terlambat ? 'sisa-crit' : 'sisa-warn');
@@ -833,7 +859,7 @@ window.switchOrderTab = function(tab) {
 // ─────────────────────────────────────────────
 // DETAIL PANEL — Riwayat Pengiriman per Order
 // ─────────────────────────────────────────────
-function renderDetailPanel({ o, terkirim, sisa, persen, stokBoard, status, statusClass, statusIcon }) {
+function renderDetailPanel({ o, terkirim, sisa, persen, stokBoard, stokPerKetebalan, status, statusClass, statusIcon }) {
     const shipments = (window.penjualanList || [])
         .filter(p => p.orderId === o.id)
         .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
@@ -909,28 +935,36 @@ function renderDetailPanel({ o, terkirim, sisa, persen, stokBoard, status, statu
             ${(() => {
                 const variants = migrateOrderVariants(o);
                 if (!variants.length) return '';
+                const _sk = stokPerKetebalan || {};
                 const rows = variants.map(v => {
-                    const pct = o.volumeOrder > 0 ? (v.volume / o.volumeOrder * 100).toFixed(1) : '0';
+                    const k      = v.ketebalan || '';
+                    const pct    = o.volumeOrder > 0 ? (v.volume / o.volumeOrder * 100).toFixed(1) : '0';
+                    const stokV  = _sk[k] || 0;
+                    const sisaV  = Math.max(0, v.volume - stokV);
+                    const pStokV = v.volume > 0 ? Math.min(100, stokV / v.volume * 100).toFixed(1) : '0';
+                    const stokColor = stokV >= v.volume ? '#22c55e' : stokV > 0 ? '#60a5fa' : 'var(--muted)';
                     return `
-                    <div style="display:flex;justify-content:space-between;align-items:center;
-                                padding:7px 10px;background:var(--bg);border:1px solid var(--border);
-                                border-radius:8px;font-size:12px;margin-bottom:5px;">
-                        <span class="tebal-chip" style="pointer-events:none;">
-                            ${v.ketebalan ? v.ketebalan+'mm' : '?mm'}
-                        </span>
-                        <div style="display:flex;align-items:center;gap:12px;">
-                            <span style="font-family:var(--font-mono);color:var(--gold);font-weight:700;">
-                                ${fmtDec(v.volume,2)} m³
-                            </span>
-                            <span style="font-size:10px;color:var(--muted);">${pct}%</span>
-                            <div style="width:80px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
-                                <div style="height:100%;width:${pct}%;background:var(--gold);border-radius:3px;"></div>
+                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                                padding:9px 11px;margin-bottom:6px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <span class="tebal-chip" style="pointer-events:none;">${k ? k+'mm' : '?mm'}</span>
+                            <div style="display:flex;align-items:center;gap:14px;font-size:11px;font-family:var(--font-mono);">
+                                <span title="Target Order" style="color:var(--gold);font-weight:700;">${fmtDec(v.volume,2)} m³</span>
+                                <span title="Stok Board" style="color:${stokColor};font-weight:700;">▪ ${fmtDec(stokV,2)} m³</span>
+                                <span title="Sisa" style="color:${sisaV>0?'var(--orange)':'#22c55e'};font-size:10px;">sisa ${fmtDec(sisaV,2)}</span>
                             </div>
+                        </div>
+                        <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
+                            <div style="height:100%;width:${pStokV}%;background:${stokColor};border-radius:3px;transition:width .4s;"></div>
+                        </div>
+                        <div style="display:flex;gap:10px;margin-top:4px;font-size:9px;color:var(--muted);">
+                            <span>Target: ${pct}% dari total order</span>
+                            <span style="color:${stokColor};">Stok: ${pStokV}% terpenuhi</span>
                         </div>
                     </div>`;
                 }).join('');
                 return `<div style="margin-bottom:12px;">
-                    <div class="detail-shipments-title" style="margin-bottom:8px;">📐 Varian Ketebalan</div>
+                    <div class="detail-shipments-title" style="margin-bottom:8px;">📐 Varian Ketebalan & Stok Board</div>
                     ${rows}
                 </div>`;
             })()}
