@@ -375,25 +375,104 @@ window.renderSezingList = function () {
 // ═══════════════════════════════════════════════════════
 // STOK BOARD — FORM INPUT
 // ═══════════════════════════════════════════════════════
+
+// Helper: cek apakah PO sudah selesai (volume terpenuhi >= volumeOrder)
+function isPOSelesai(order) {
+    if (!order || !order.volumeOrder || order.volumeOrder <= 0) return false;
+    const terpenuhi = (window.penjualanList || [])
+        .filter(p => p.orderId === order.id)
+        .reduce((a, p) => a + getPenjualanNetto(p), 0);
+    return terpenuhi >= order.volumeOrder;
+}
+
+// Helper: ambil varian ketebalan dari order
+function getOrderVariants(order) {
+    if (!order) return [];
+    if (order.ketebalanVariants && order.ketebalanVariants.length)
+        return order.ketebalanVariants;
+    if (order.ketebalanProduk)
+        return [{ ketebalan: order.ketebalanProduk, volume: order.volumeOrder || 0 }];
+    return [{ ketebalan: '', volume: order.volumeOrder || 0 }];
+}
+
+// Render box input stok per ketebalan secara dinamis
+window.onBsOrderChange = function () {
+    const orderId = document.getElementById('bs-order')?.value;
+    const order   = (window.orderList || []).find(o => o.id === orderId);
+    const cont    = document.getElementById('bs-ketebalan-inputs');
+    if (!cont) return;
+
+    if (!order) {
+        cont.innerHTML = `
+        <div class="field">
+            <label>Stok Board (m³) *</label>
+            <input type="number" step="any" class="bs-stok-input" data-ketebalan="" placeholder="0.000">
+        </div>`;
+        return;
+    }
+
+    const variants = getOrderVariants(order);
+
+    if (variants.length <= 1) {
+        // Satu ketebalan — satu box input saja
+        const k = variants[0]?.ketebalan || '';
+        const col = tebalColor(k);
+        cont.innerHTML = `
+        <div class="field">
+            <label>Stok Board${k ? ` <span style="background:${col.bg};color:${col.text};border:1px solid ${col.border};border-radius:20px;padding:1px 7px;font-size:9px;font-weight:700;">${k}mm</span>` : ''} (m³) *</label>
+            <input type="number" step="any" class="bs-stok-input" data-ketebalan="${escapeHtml(k)}" placeholder="0.000">
+        </div>`;
+    } else {
+        // Multi-ketebalan — box per varian
+        cont.innerHTML = variants.map(v => {
+            const k   = v.ketebalan || '';
+            const col = tebalColor(k);
+            return `
+            <div class="field">
+                <label>Stok Board <span style="background:${col.bg};color:${col.text};border:1px solid ${col.border};border-radius:20px;padding:1px 7px;font-size:9px;font-weight:700;">${k}mm</span> (m³)</label>
+                <input type="number" step="any" class="bs-stok-input" data-ketebalan="${escapeHtml(k)}" placeholder="0.000"
+                    title="Target: ${fmtDec(v.volume || 0, 3)} m³">
+                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Target order: ${fmtDec(v.volume || 0, 3)} m³</div>
+            </div>`;
+        }).join('');
+    }
+};
+
 function initBoardStockForm() {
     const cont = document.getElementById('board-stock-form-container');
     if (!cont) return;
-    const orders = window.orderList || [];
-    const orderOptions = orders.map(o =>
-        `<option value="${o.id}">${escapeHtml(o.kodePO||'')} — ${escapeHtml(o.perusahaan||'')}</option>`
-    ).join('');
+
+    // Hanya tampilkan PO yang BELUM selesai
+    const orders       = window.orderList || [];
+    const activeOrders = orders.filter(o => !isPOSelesai(o));
+    const orderOptions = activeOrders.map(o => {
+        const variants = getOrderVariants(o);
+        const tebalLabel = variants.length > 1
+            ? variants.map(v => v.ketebalan ? v.ketebalan + 'mm' : '?').join(' + ')
+            : (variants[0]?.ketebalan ? variants[0].ketebalan + 'mm' : '');
+        return `<option value="${o.id}">${escapeHtml(o.kodePO||'')} — ${escapeHtml(o.perusahaan||'')}${tebalLabel ? ' ['+tebalLabel+']' : ''}</option>`;
+    }).join('');
+
     cont.innerHTML = `
     <div class="form-title">📦 Input Stok Board</div>
     <div class="grid3">
         <div class="field"><label>Tanggal *</label><input type="date" id="bs-tanggal" value="${today()}"></div>
-        <div class="field"><label>Order / PO</label>
-            <select id="bs-order"><option value="">-- Pilih PO --</option>${orderOptions}</select>
+        <div class="field" style="grid-column:span 2;">
+            <label>Order / PO <span style="font-size:9px;color:var(--muted);font-weight:400;">(PO selesai tidak ditampilkan)</span></label>
+            <select id="bs-order" onchange="window.onBsOrderChange()">
+                <option value="">-- Pilih PO --</option>${orderOptions}
+            </select>
         </div>
-        <div class="field"><label>Stok Board (m³) *</label><input type="number" step="any" id="bs-stok" placeholder="0.000"></div>
-        <div class="field"><label>Ketebalan (mm)</label>
-            <input type="number" id="bs-ketebalan" placeholder="cth: 15" min="1" step="1">
+        <div id="bs-ketebalan-inputs" class="field" style="grid-column:span 3;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+            <div class="field">
+                <label>Stok Board (m³) *</label>
+                <input type="number" step="any" class="bs-stok-input" data-ketebalan="" placeholder="0.000">
+            </div>
         </div>
-        <div class="field"><label>Keterangan</label><input type="text" id="bs-keterangan" placeholder="Catatan opsional"></div>
+        <div class="field" style="grid-column:span 3;">
+            <label>Keterangan</label>
+            <input type="text" id="bs-keterangan" placeholder="Catatan opsional">
+        </div>
     </div>
     <div class="form-actions" style="margin-top:12px;">
         <button class="btn btn-secondary" onclick="window.resetBoardStockForm()">🔄 Reset</button>
@@ -402,29 +481,42 @@ function initBoardStockForm() {
 }
 
 window.saveBoardStock = function () {
-    const tgl  = document.getElementById('bs-tanggal')?.value;
-    const stok = parseFloat(document.getElementById('bs-stok')?.value) || 0;
-    const ordId= document.getElementById('bs-order')?.value;
-    const keteb= document.getElementById('bs-ketebalan')?.value;
-    const ket  = document.getElementById('bs-keterangan')?.value?.trim();
-    if (!tgl)  { toast('⚠️ Tanggal wajib diisi!'); return; }
-    if (!stok) { toast('⚠️ Stok wajib diisi!'); return; }
-    const item = { id:uid(), tanggal:tgl, stok, orderId:ordId||'', ketebalan:keteb||'', keterangan:ket||'' };
+    const tgl   = document.getElementById('bs-tanggal')?.value;
+    const ordId = document.getElementById('bs-order')?.value;
+    const ket   = document.getElementById('bs-keterangan')?.value?.trim();
+
+    if (!tgl) { toast('⚠️ Tanggal wajib diisi!'); return; }
+
+    // Kumpulkan semua box stok per ketebalan
+    const inputs = document.querySelectorAll('.bs-stok-input');
+    const entries = [];
+    inputs.forEach(inp => {
+        const stok = parseFloat(inp.value) || 0;
+        if (stok > 0) entries.push({ ketebalan: inp.dataset.ketebalan || '', stok });
+    });
+
+    if (!entries.length) { toast('⚠️ Minimal satu nilai stok wajib diisi!'); return; }
+
     if (!window.boardStockList) window.boardStockList = [];
-    window.boardStockList.push(item);
+
+    entries.forEach(e => {
+        const item = { id: uid(), tanggal: tgl, stok: e.stok, orderId: ordId || '', ketebalan: e.ketebalan, keterangan: ket || '' };
+        window.boardStockList.push(item);
+        logActivity?.('Simpan', 'StokBoard', `${fmtDec(e.stok, 3)} m³ · ${e.ketebalan || '—'}mm`);
+    });
+
     persistAll();
-    logActivity?.('Simpan', 'StokBoard', `${fmtDec(stok,3)} m³`);
-    toast('✅ Stok board disimpan!');
+    toast(`✅ Stok board disimpan! (${entries.length} ketebalan)`);
     window.resetBoardStockForm();
     renderBoardStockSummary();
     renderBoardStockHistory();
 };
 
 window.resetBoardStockForm = function () {
-    const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-    setV('bs-tanggal', today()); setV('bs-stok', ''); setV('bs-keterangan', '');
-    ['bs-order'].forEach(id => { const el=document.getElementById(id); if(el) el.selectedIndex=0; });
-    const bsKet = document.getElementById('bs-ketebalan'); if (bsKet) bsKet.value = '';
+    const tgl = document.getElementById('bs-tanggal'); if (tgl) tgl.value = today();
+    const ket = document.getElementById('bs-keterangan'); if (ket) ket.value = '';
+    const sel = document.getElementById('bs-order'); if (sel) { sel.selectedIndex = 0; window.onBsOrderChange(); }
+    document.querySelectorAll('.bs-stok-input').forEach(el => el.value = '');
 };
 
 window.deleteBoardStock = function (id) {
@@ -525,10 +617,20 @@ function renderBoardStockHistory() {
 function refreshBoardStockOrders() {
     const sel = document.getElementById('bs-order');
     if (!sel) return;
-    const orders = window.orderList || [];
-    const currentVal = sel.value;
+    const orders       = window.orderList || [];
+    const activeOrders = orders.filter(o => !isPOSelesai(o));
+    const currentVal   = sel.value;
     sel.innerHTML = '<option value="">-- Pilih PO --</option>' +
-        orders.map(o => `<option value="${o.id}"${o.id===currentVal?' selected':''}>${escapeHtml(o.kodePO||'')} — ${escapeHtml(o.perusahaan||'')}</option>`).join('');
+        activeOrders.map(o => {
+            const variants   = getOrderVariants(o);
+            const tebalLabel = variants.length > 1
+                ? variants.map(v => v.ketebalan ? v.ketebalan + 'mm' : '?').join(' + ')
+                : (variants[0]?.ketebalan ? variants[0].ketebalan + 'mm' : '');
+            return `<option value="${o.id}"${o.id===currentVal?' selected':''}>${escapeHtml(o.kodePO||'')} — ${escapeHtml(o.perusahaan||'')}${tebalLabel ? ' ['+tebalLabel+']' : ''}</option>`;
+        }).join('');
+    if (currentVal && activeOrders.some(o => o.id === currentVal)) {
+        window.onBsOrderChange?.();
+    }
 }
 
 // ═══════════════════════════════════════════════════════
