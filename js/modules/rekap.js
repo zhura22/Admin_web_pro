@@ -59,15 +59,26 @@ function getRekapData(bulan) {
     // Sezing
     const volSezing  = sezing.reduce((a,s) => a+(s.volume||0), 0);
 
+    // Stok Board
+    const boardStock  = (window.boardStockList || []).filter(s => s.tanggal?.startsWith(bulan));
+    const volStokBoard= boardStock.reduce((a,s) => a+(s.stok||0), 0);
+
     // Efisiensi end-to-end: kayu masuk → press keluar
-    const konversi   = volKayu > 0 ? (totPlaner / volKayu * 100) : 0;
+    const konversi    = volKayu > 0 ? (totPlaner / volKayu * 100) : 0;
+
+    // Order ringkasan
+    const orderSelesai = order.filter(o => {
+        const t = (window.penjualanList||[]).filter(p=>p.orderId===o.id).reduce((a,p)=>a+Math.max(0,(p.volume||0)-(p.retur||0)),0);
+        return o.volumeOrder > 0 && t >= o.volumeOrder;
+    });
+    const orderBelum   = order.filter(o => !orderSelesai.find(s=>s.id===o.id));
 
     return {
-        kayu, sawmill, oven, prod, penj, order, sezing,
+        kayu, sawmill, oven, prod, penj, order, sezing, boardStock,
         volKayu, nilaiKayu, volSawIn, volPaletOk, rendemen,
         totPlaner, totPress, totRipsaw, totSeri, totMasuk, totTidak,
         efRipsaw, kehadiran, volJual, nilaiJual, orderAktif, orderBulan,
-        volSezing, konversi
+        volSezing, konversi, volStokBoard, orderSelesai, orderBelum
     };
 }
 
@@ -377,7 +388,7 @@ function renderRekapPerModul(bulan) {
             <td class="right">${fmtDec(k.volume||0,2)}</td>
             <td class="right">${fmtRp(k.harga||0)}</td>
         </tr>`).join('')}
-        ${!kayu2.length ? '<tr><td colspan="5" class="empty">Belum ada数据</td></tr>':'' }
+        ${!kayu2.length ? '<tr><td colspan="5" class="empty">Belum ada data</td></tr>':'' }
         </tbody></table>
     </div>`;
 
@@ -399,7 +410,7 @@ function renderRekapPerModul(bulan) {
                 <td class="right" style="color:${rc}">${r}%</td>
             </tr>`;
         }).join('')}
-        ${!saw2.length ? '<tr><td colspan="5" class="empty">Belum ada数据</td></tr>':''}
+        ${!saw2.length ? '<tr><td colspan="5" class="empty">Belum ada data</td></tr>':''}
         </tbody></table>
     </div>`;
 
@@ -417,11 +428,64 @@ function renderRekapPerModul(bulan) {
             <td class="right">${fmtDec(j.volume||0,2)}</td>
             <td class="right">${fmtRp(j.harga||0)}</td>
         </tr>`).join('')}
-        ${!penj2.length ? '<tr><td colspan="5" class="empty">Belum ada数据</td></tr>':''}
+        ${!penj2.length ? '<tr><td colspan="5" class="empty">Belum ada data</td></tr>':''}
         </tbody></table>
     </div>`;
 
-    cont.innerHTML = tblKayu + tblSaw + tblPenj;
+    // Tabel Sezing bulan ini
+    const sz2  = [...d.sezing].sort((a,b)=>b.tanggal?.localeCompare(a.tanggal)).slice(0,8);
+    const tblSez = `
+    <div class="section-head">📐 Sezing/Cutting — ${formatBln(bulan)}</div>
+    <div class="table-wrap" style="margin-bottom:20px;">
+        <table><thead><tr>
+            <th>Tanggal</th><th>Open No.</th><th>Jenis</th>
+            <th>Ketebalan</th><th>Vol (m³)</th><th>Lbr (pcs)</th>
+        </tr></thead><tbody>
+        ${sz2.map(s=>`<tr>
+            <td>${fmtDate(s.tanggal)}</td>
+            <td class="highlight">${s.openNo||'—'}</td>
+            <td>${s.jenis||'—'}</td>
+            <td>${s.ketebalan?s.ketebalan+'mm':'—'}</td>
+            <td class="right">${fmtDec(s.volume||0,3)}</td>
+            <td class="right">${s.pcs||0}</td>
+        </tr>`).join('')}
+        ${!sz2.length ? '<tr><td colspan="6" class="empty">Belum ada data</td></tr>':''}
+        </tbody></table>
+    </div>`;
+
+    // Tabel Order Aktif + Stok Board
+    const tblOrder = d.orderBelum.length ? `
+    <div class="section-head">📑 Status Order Aktif (${d.orderBelum.length} PO)</div>
+    <div class="table-wrap" style="margin-bottom:20px;">
+        <table><thead><tr>
+            <th>Kode PO</th><th>Perusahaan</th><th>Deadline</th>
+            <th>Vol Order</th><th>Terkirim</th><th>Stok Board</th><th>Sisa</th><th>Status</th>
+        </tr></thead><tbody>
+        ${d.orderBelum.map(o => {
+            const terkirim = (window.penjualanList||[]).filter(p=>p.orderId===o.id)
+                .reduce((a,p)=>a+Math.max(0,(p.volume||0)-(p.retur||0)),0);
+            const sk = (window.boardStockList||[]).filter(s=>s.orderId===o.id)
+                .reduce((a,s)=>a+(s.stok||0),0);
+            const sisa = Math.max(0, o.volumeOrder - terkirim);
+            const pct  = o.volumeOrder>0?(terkirim/o.volumeOrder*100).toFixed(0):0;
+            const isLambat = o.deadline && today() > o.deadline;
+            const statusC = sisa<=0?'#22c55e':isLambat?'#f87171':'var(--gold)';
+            const statusL = sisa<=0?'Selesai':isLambat?'Terlambat':'Berjalan';
+            return `<tr>
+                <td class="highlight">${escapeHtml(o.kodePO)}</td>
+                <td>${escapeHtml(o.perusahaan)}</td>
+                <td style="color:${isLambat?'#f87171':'var(--muted)'};">${o.deadline?fmtDate(o.deadline):'—'}</td>
+                <td class="right">${fmtDec(o.volumeOrder,2)}</td>
+                <td class="right" style="color:#22c55e;">${fmtDec(terkirim,2)}</td>
+                <td class="right" style="color:#60a5fa;">${sk>0?fmtDec(sk,2):'—'}</td>
+                <td class="right" style="color:${sisa>0?'var(--orange)':'#22c55e'};">${fmtDec(sisa,2)}</td>
+                <td><span style="color:${statusC};font-weight:700;font-size:11px;">${statusL} (${pct}%)</span></td>
+            </tr>`;
+        }).join('')}
+        </tbody></table>
+    </div>` : '';
+
+    cont.innerHTML = tblKayu + tblSaw + tblSez + tblPenj + tblOrder;
 }
 
 // ═══════════════════════════════════════════════════════════

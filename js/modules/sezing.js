@@ -13,10 +13,7 @@ if (!window.penjualanList)  window.penjualanList  = [];
 // ═══════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str).replace(/[&<>"']/g, c =>
-        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// escapeHtml — defined globally in utils.js[c]));
 }
 
 function getPenjualanNetto(p) {
@@ -538,32 +535,64 @@ function renderBoardStockSummary() {
     const orders    = window.orderList || [];
     const { totPress, totJual, totSezing } = getStokBoardRealtime();
 
-    const latestByOrder = {};
+    // Stok terbaru per order per ketebalan
+    const stokByOrder = {};
     stockList.forEach(s => {
         if (!s.orderId) return;
-        if (!latestByOrder[s.orderId] || s.tanggal > latestByOrder[s.orderId].tanggal)
-            latestByOrder[s.orderId] = s;
+        if (!stokByOrder[s.orderId]) stokByOrder[s.orderId] = {};
+        const k = s.ketebalan || '';
+        if (!stokByOrder[s.orderId][k] || s.tanggal > stokByOrder[s.orderId][k].tanggal)
+            stokByOrder[s.orderId][k] = s;
     });
 
-    const rows = orders.filter(o => latestByOrder[o.id]).map(o => {
-        const s = latestByOrder[o.id];
-        const col = tebalColor(s.ketebalan);
+    // Tampilkan semua order (aktif: belum selesai), dengan atau tanpa stok
+    const activeOrders = orders.filter(o => {
+        const t = (window.penjualanList||[]).filter(p=>p.orderId===o.id).reduce((a,p)=>a+Math.max(0,(p.volume||0)-(p.retur||0)),0);
+        return !(o.volumeOrder > 0 && t >= o.volumeOrder);
+    });
+
+    const rows = activeOrders.map(o => {
+        const stokPerTebal = stokByOrder[o.id] || {};
+        const entries = Object.values(stokPerTebal);
+        const totalStok = entries.reduce((a,s) => a+(s.stok||0), 0);
+        const variants  = (o.ketebalanVariants && o.ketebalanVariants.length)
+            ? o.ketebalanVariants
+            : o.ketebalanProduk ? [{ketebalan: o.ketebalanProduk, volume: o.volumeOrder||0}] : [];
+        const hasStok = entries.length > 0;
+
+        const tebalRows = variants.map(v => {
+            const k = v.ketebalan||'';
+            const s = stokPerTebal[k];
+            const col = tebalColor(k);
+            const stokVal = s ? s.stok : 0;
+            const pct = v.volume > 0 ? Math.min(100, stokVal/v.volume*100).toFixed(0) : 0;
+            return `
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:11px;">
+                <span style="background:${col.bg};color:${col.text};border:1px solid ${col.border};border-radius:20px;padding:1px 7px;font-size:9px;font-weight:700;min-width:38px;text-align:center;">${k||'?'}mm</span>
+                <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:${pct}%;background:${stokVal>0?col.border:'transparent'};border-radius:3px;"></div>
+                </div>
+                <span style="font-family:var(--font-mono);color:${stokVal>0?col.text:'var(--muted)'};font-weight:700;min-width:55px;text-align:right;">${stokVal>0?fmtDec(stokVal,2):'—'} m³</span>
+                ${s?`<button class="btn btn-del btn-sm" style="padding:2px 6px;font-size:9px;" onclick="window.deleteBoardStock('${s.id}')">🗑</button>`:'<span style="width:32px;"></span>'}
+            </div>`;
+        }).join('');
+
         return `
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 13px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:160px;">
-                <div>
-                    <div style="font-size:12px;font-weight:700;font-family:var(--font-mono);color:var(--gold);">${escapeHtml(o.kodePO||'—')}</div>
-                    <div style="font-size:10px;color:var(--muted);">${escapeHtml(o.perusahaan||'')} · ${fmtDate(s.tanggal)}</div>
+        <div style="padding:10px 13px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:160px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+                        <span style="font-size:12px;font-weight:700;font-family:var(--font-mono);color:var(--gold);">${escapeHtml(o.kodePO||'—')}</span>
+                        <span style="font-size:10px;color:var(--muted);">${escapeHtml(o.perusahaan||'')}</span>
+                        ${!hasStok?'<span style="font-size:9px;background:rgba(156,163,175,.12);color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:1px 7px;">Belum ada stok</span>':''}
+                    </div>
+                    <div style="font-size:10px;color:var(--muted);">Total order: ${fmtDec(o.volumeOrder||0,2)} m³</div>
+                </div>
+                <div style="font-family:var(--font-mono);font-size:15px;font-weight:800;color:${hasStok?'var(--blue)':'var(--muted)'};">
+                    ${hasStok?fmtDec(totalStok,2)+'<span style="font-size:9px;color:var(--muted);margin-left:2px;">m³</span>':'—'}
                 </div>
             </div>
-            <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
-                ${s.ketebalan?`<span style="background:${col.bg};color:${col.text};border:1px solid ${col.border};border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;">${s.ketebalan}mm</span>`:''}
-                <div style="text-align:right;">
-                    <div style="font-size:16px;font-weight:800;font-family:var(--font-mono);color:var(--blue);">${fmtDec(s.stok,3)}</div>
-                    <div style="font-size:9px;color:var(--muted);">m³</div>
-                </div>
-                <button class="btn btn-del btn-sm" onclick="window.deleteBoardStock('${s.id}')">🗑️</button>
-            </div>
+            ${variants.length ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">${tebalRows}</div>` : ''}
         </div>`;
     }).join('');
 
@@ -1158,7 +1187,7 @@ window.populateOrderDropdown = function (selectedId) {
     const sel = document.getElementById('jual-order');
     if (!sel) return;
     const activeOrders = (window.orderList||[]).filter(o => {
-        const terkirim = (window.penjualanList||[]).filter(p=>p.orderId===o.id).reduce((s,p)=>s+(parseFloat(p.volume)||0),0);
+        const terkirim = (window.penjualanList||[]).filter(p=>p.orderId===o.id).reduce((s,p)=>s+Math.max(0,(parseFloat(p.volume)||0)-(parseFloat(p.retur)||0)),0);
         return !(o.volumeOrder>0 && terkirim>=o.volumeOrder) || o.id===selectedId;
     });
     sel.innerHTML = '<option value="">-- Pilih PO --</option>' +
@@ -1278,7 +1307,7 @@ window.editPenjualan = function (id) {
 window.exportSezingCSV = function () {
     if (!(window.sezingList||[]).length) { toast('⚠️ Tidak ada data'); return; }
     const headers = ['Tanggal','Open No.','Ketebalan(mm)','Jenis','Volume(m³)','Lembar(pcs)','Shift','Operator','Keterangan'];
-    const rows    = sortByDateAsc(window.sezingList).map(s => [s.tanggal,s.openNo||'',s.ketebalan||'',s.jenis||'',fmtDec(s.volume||0,3),s.pcs||0,s.shift||'1',s.operator||'',s.keterangan||''].join(','));
+    const rows    = sortByDateAsc(window.sezingList).map(s => [s.tanggal,s.openNo||'',s.ketebalan||'',s.jenis||'',fmtDec(s.volume||0,3),s.pcs||0,s.shift||'1',s.operator||'',escapeHtml(s.keterangan||'')].join(','));
     _downloadCSV([headers.join(','),...rows].join('\n'), `sezing_${thisMonth()}.csv`);
     toast('📥 CSV sezing berhasil diunduh');
 };

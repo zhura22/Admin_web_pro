@@ -76,3 +76,19 @@ window.getOrderTerpenuhi = function(orderId) {
         .filter(p => p.orderId === orderId)
         .reduce((sum, p) => sum + ((p.volume || 0) - (p.retur || 0)), 0);
 };
+// ── String & Format Helpers ─────────────────────────────
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
+    );
+}
+
+function fmtRp(n) {
+    if (!n) return '—';
+    if (n >= 1e9) return 'Rp ' + (n/1e9).toFixed(1) + ' M';
+    if (n >= 1e6) return 'Rp ' + (n/1e6).toFixed(1) + ' jt';
+    if (n >= 1e3) return 'Rp ' + Math.round(n/1e3) + ' rb';
+    return 'Rp ' + Math.round(n).toLocaleString('id-ID');
+}
+

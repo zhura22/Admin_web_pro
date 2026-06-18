@@ -12,6 +12,7 @@ window.renderAll = function() {
     renderRekap();
     window.renderBatch();   // FIX: pakai window. agar selalu terdefinisi
     renderOpname();
+    if (typeof window.renderLMKB === 'function') window.renderLMKB();
     renderDashboard();
     renderLog();
     renderSettings();
@@ -63,6 +64,7 @@ window.switchTab = function(name) {
         renderOpname();
     }
     if (name === "batch") window.renderBatch();
+    if (name === "lmkb") { if (typeof window.renderLMKB === 'function') window.renderLMKB(); }
     if (name === "log") renderLog();
     if (name === "settings") renderSettings();
 
