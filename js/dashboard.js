@@ -112,9 +112,6 @@ function renderDashboardKPI() {
     const minStok     = (window.appSettings||{}).minStokKering || 50;
     const stokCol     = stokKering < minStok ? 'var(--red)' : stokKering < 100 ? 'var(--orange)' : 'var(--green)';
 
-    // ── Stok Board ──
-    const stokBoardTotal = (window.boardStockList||[]).reduce((a,s)=>a+(s.stok||0),0);
-
     // ── Order ──
     let sisaOrderTotal = 0, totVolOrder = 0;
     const orderAktif = (window.orderList||[]).filter(o => {
@@ -160,39 +157,8 @@ function renderDashboardKPI() {
         ${dashKPI('🔥 Oven',         ovenAktif+'/7 aktif',         ovenAktif>0?'var(--orange)':'var(--muted)', ovenKosong+' chamber kosong')}
         ${dashKPI('📦 Stok Kering',  fmtDec(stokKering,2)+' m³',  stokCol,            'Min: '+minStok+' m³')}
         ${dashKPI('📑 Order Aktif',  orderAktif.length+' PO',      orderAktif.length>0?'#60a5fa':'var(--green)', 'Sisa: '+fmtDec(sisaOrderTotal,2)+' m³')}
-        ${dashKPI('📦 Stok Board',   fmtDec(stokBoardTotal,2)+' m³', '#8b5cf6',       stokBoardTotal > 0 ? 'Total stok board tersedia' : 'Belum ada stok board')}
         ${dashKPI('💵 Nilai Kayu',   'Rp '+fmtRupiah(nilaiKayuBln),'var(--orange)',   fmtDec(volKayuBln,2)+' m³ masuk')}
     </div>
-
-    ${orderAktif.length > 0 ? `
-    <div style="background:var(--bg2);border:1px solid rgba(96,165,250,.3);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
-        <div style="font-size:11px;font-weight:700;color:#60a5fa;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">
-            📑 Order Aktif — ${orderAktif.length} PO
-        </div>
-        ${orderAktif.slice(0,5).map(o => {
-            const terp = typeof window.getOrderTerpenuhi==='function'?window.getOrderTerpenuhi(o.id):0;
-            const sk   = (window.boardStockList||[]).filter(s=>s.orderId===o.id).reduce((a,s)=>a+(s.stok||0),0);
-            const pct  = o.volumeOrder>0?Math.min(100,terp/o.volumeOrder*100):0;
-            const pSkB = o.volumeOrder>0?Math.min(100-pct, sk/o.volumeOrder*100):0;
-            const isLambat = o.deadline && today() > o.deadline;
-            const bColor   = pct>=100?'#22c55e':isLambat?'#f87171':'#60a5fa';
-            return \`<div style="margin-bottom:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
-                    <span style="font-size:11px;font-weight:700;font-family:var(--font-mono);color:var(--gold);">\${escapeHtml(o.kodePO)}</span>
-                    <span style="font-size:10px;color:var(--muted);">\${escapeHtml(o.perusahaan||'')} · \${pct.toFixed(0)}%</span>
-                </div>
-                <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
-                    <div style="height:100%;width:\${pct.toFixed(1)}%;background:\${bColor};border-radius:3px;display:inline-block;"></div>
-                    <div style="height:100%;width:\${pSkB.toFixed(1)}%;background:#8b5cf6;border-radius:3px;display:inline-block;margin-left:-1px;"></div>
-                </div>
-            </div>\`;
-        }).join('')}
-        <div style="font-size:9px;color:var(--muted);margin-top:4px;">
-            <span style="color:#22c55e;">■ Terkirim</span>
-            <span style="color:#8b5cf6;margin-left:8px;">■ Stok Board</span>
-            <span style="color:var(--border);margin-left:8px;">■ Sisa</span>
-        </div>
-    </div>` : ''}
 
     <div style="background:var(--bg2);border:1px solid var(--gold-dim);border-radius:12px;padding:16px 18px;margin-bottom:4px;">
         <div style="font-size:11px;font-weight:700;color:var(--gold-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">🔄 Aliran Material — ${formatBulan(bulan)}</div>

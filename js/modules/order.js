@@ -872,44 +872,15 @@ function renderDetailPanel({ o, terkirim, sisa, persen, stokBoard, stokPerKeteba
     if (!shipments.length) {
         shipmentsHtml = `<div class="no-shipment">Belum ada pengiriman untuk order ini.</div>`;
     } else {
-        const totalNetto  = shipments.reduce((a,p)=>a+Math.max(0,(p.volume||0)-(p.retur||0)),0);
-        const totalRetur  = shipments.reduce((a,p)=>a+(p.retur||0),0);
-        shipmentsHtml += `
-            <div style="display:flex;gap:18px;padding:10px 14px;background:var(--bg3);border-radius:8px;
-                        margin-bottom:10px;font-size:11px;border:1px solid var(--border);">
-                <div><span style="color:var(--muted);">Total Pengiriman:</span>
-                    <strong style="color:#22c55e;font-family:var(--font-mono);margin-left:4px;">${fmtDec(totalNetto,3)} m³</strong></div>
-                ${totalRetur>0 ? `<div><span style="color:var(--muted);">Total Retur:</span>
-                    <strong style="color:#f87171;font-family:var(--font-mono);margin-left:4px;">-${fmtDec(totalRetur,3)} m³</strong></div>` : ''}
-                <div><span style="color:var(--muted);">Jumlah Trip:</span>
-                    <strong style="margin-left:4px;">${shipments.length}x</strong></div>
-            </div>`;
         shipments.forEach((p, i) => {
-            const netto = Math.max(0, (p.volume || 0) - (p.retur || 0));
+            const netto = (p.volume || 0) - (p.retur || 0);
             const returHtml = p.retur > 0
-                ? `<div style="font-size:10px;color:#f87171;margin-top:2px;">🔄 Retur: ${fmtDec(p.retur,2)} m³ — Netto: ${fmtDec(netto,2)} m³</div>` : '';
-            const ketHtml = p.keterangan
-                ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;">📝 ${escapeHtml(p.keterangan)}</div>` : '';
+                ? `<span class="shipment-retur"> (Retur: ${fmtDec(p.retur,2)} m³)</span>` : '';
             shipmentsHtml += `
                 <div class="shipment-item">
-                    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-                        <div>
-                            <div style="font-size:12px;font-weight:600;">
-                                <span class="shipment-date">#${i+1} · ${fmtDate(p.tanggal)}</span>
-                            </div>
-                            <div style="margin-top:3px;">
-                                <span class="shipment-truck">🚛 ${escapeHtml(p.noTruk||'—')}</span>
-                                ${p.tujuan?`<span style="font-size:10px;color:var(--muted);margin-left:6px;">→ ${escapeHtml(p.tujuan)}</span>`:''}
-                            </div>
-                            ${returHtml}${ketHtml}
-                        </div>
-                        <div style="text-align:right;flex-shrink:0;">
-                            <div style="font-size:15px;font-weight:800;font-family:var(--font-mono);color:#22c55e;">
-                                +${fmtDec(p.volume||0,3)} m³
-                            </div>
-                            ${p.retur>0?`<div style="font-size:10px;color:#f87171;">Netto: ${fmtDec(netto,3)}</div>`:''}
-                        </div>
-                    </div>
+                    <span class="shipment-date">#${i+1} · ${fmtDate(p.tanggal)}</span>
+                    <span><span class="shipment-vol">+${fmtDec(netto,2)} m³</span>${returHtml}</span>
+                    <span class="shipment-truck">🚛 ${escapeHtml(p.noTruk||'—')} → ${escapeHtml(p.tujuan||'—')}</span>
                 </div>
             `;
         });
@@ -1343,7 +1314,10 @@ window.populateOrderDropdown = function(selectedOrderId = null) {
     }
 };
 
-// escapeHtml — defined globally in utils.js[m]));
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, m =>
+        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 }
 
 // Init

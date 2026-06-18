@@ -25,7 +25,7 @@
                 </svg>
                 <div>
                     <div class="logo-title">Admin Produksi</div>
-                    <div class="logo-sub">UD. KMSU — Manajemen Produksi Kayu</div>
+                    <div class="logo-sub">Sawmill · Oven · Produksi · Sezing · Penjualan</div>
                 </div>
             </div>
             <div class="header-actions">
@@ -49,7 +49,6 @@
                 <button class="sidebar-item" data-tab="sezing"><span class="icon">📏</span>Sezing</button>
                 <button class="sidebar-item" data-tab="penjualan"><span class="icon">💰</span>Penjualan</button>
                 <button class="sidebar-item" data-tab="order"><span class="icon">📑</span>Order Masuk</button>
-                <button class="sidebar-item" data-tab="lmkb"><span class="icon">📋</span>Lap. Mutasi Kayu</button>
             </div>
             <div class="sidebar-divider"></div>
             <div class="sidebar-label">Kontrol & Analisis</div>
@@ -410,7 +409,7 @@
                             <!-- Baris 3: No.Truk + Tujuan -->
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
                                 <div class="field">
-                                    <label>No. Polisi Truk *</label>
+                                    <label>No. Truk *</label>
                                     <input type="text" id="jual-truk" placeholder="Cth: B 1234 XY">
                                 </div>
                                 <div class="field">
@@ -485,17 +484,6 @@
 
             </div>
 
-
-            <!-- LMKB - Laporan Mutasi Kayu Bundar -->
-            <div id="tab-lmkb" class="panel hidden">
-                <div class="panel-head">
-                    <div><h2 class="panel-title">📋 Laporan Mutasi Kayu Bundar</h2><p class="panel-sub">Laporan volume kayu masuk per bulan</p></div>
-                    <div class="flex gap10 items-center wrap">
-                        <button class="btn btn-print btn-sm" onclick="window.printSection('tab-lmkb')">🖨️ Cetak</button>
-                    </div>
-                </div>
-                <div id="lmkb-container"></div>
-            </div>
             <!-- Batch Tracking -->
             <div id="tab-batch" class="panel hidden"><div class="panel-head"><div><h2 class="panel-title">🔗 Batch Tracking</h2><p class="panel-sub">Lacak aliran material per Open No.</p></div></div><div id="batch-list"></div></div>
 
@@ -559,7 +547,6 @@
                         <option value="Sezing">Sezing</option>
                         <option value="Penjualan">Penjualan</option>
                         <option value="Order">Order</option>
-                        <option value="StokBoard">Stok Board</option>
                         <option value="Opname">Opname</option>
                         <option value="Data">Data</option>
                         <option value="Backup">Backup</option>
@@ -615,7 +602,6 @@
 <script src="js/modules/sezing.js"></script>
 <script src="js/modules/opname.js"></script>
 <script src="js/modules/rekap.js"></script>
-<script src="js/modules/lmkb.js"></script>
 <script src="js/app.js"></script>
 <!-- ═══ TEMA MODULAR — tambah tema baru: buat file js/themes/theme-xxx.js lalu daftarkan di sini ═══ -->
 <script src="js/themes/theme-loader.js"></script>
